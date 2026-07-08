@@ -1,0 +1,7 @@
+# Ignore backend entirely — EAS only needs the frontend
+../backend/
+../backend/**
+
+# Ignore heavy/locked directories
+node_modules/
+.expo/
