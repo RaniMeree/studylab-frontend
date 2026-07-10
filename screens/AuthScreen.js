@@ -4,26 +4,14 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../supabaseClient';
 import { useThemeColors } from '../theme';
-import { Body, Button, ErrorText, Icon, Input, Muted, Row, Title } from '../ui';
+import { Button, ErrorText, Input, Muted, NeonBar, Row } from '../ui';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const SLIDES = [
-  {
-    icon: 'headset',
-    title: 'Turn anything into audio',
-    body: 'Upload PDFs, Word files, photos of book pages, or paste a link — then listen like an audiobook with synced highlighting.',
-  },
-  {
-    icon: 'school',
-    title: 'Actually learn it',
-    body: 'AI summaries, key terms, flashcards with smart review scheduling, and exams generated from your own material.',
-  },
-  {
-    icon: 'flame',
-    title: 'Stay on track',
-    body: 'Progress, bookmarks, notes, and your study streak follow you across devices. Start with a free 3-day trial.',
-  },
+  { emoji: '🎧', title: 'Turn anything into audio', body: 'Upload PDFs, photos of book pages, or paste a link — then listen like an audiobook.' },
+  { emoji: '🧠', title: 'Actually learn it', body: 'AI summaries, flashcards with smart review scheduling, and exams from your own material.' },
+  { emoji: '🔥', title: 'Stay on track', body: 'Progress, bookmarks, notes, and your study streak follow you across devices. 3-day free trial.' },
 ];
 
 export function OnboardingScreen({ onDone }) {
@@ -32,38 +20,53 @@ export function OnboardingScreen({ onDone }) {
   const s = SLIDES[slide];
   const last = slide === SLIDES.length - 1;
   return (
-    <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
-      <View
-        style={{
-          width: 84, height: 84, borderRadius: 42, backgroundColor: c.accentSoft,
-          alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-        }}
-      >
-        <Icon name={s.icon} size={40} color={c.accent} />
+    <View style={{ alignItems: 'center', paddingVertical: 60, paddingHorizontal: 28 }}>
+      {/* Glow icon */}
+      <View style={{
+        width: 96, height: 96, borderRadius: 28,
+        backgroundColor: 'rgba(124,58,237,0.2)',
+        alignItems: 'center', justifyContent: 'center', marginBottom: 28,
+        borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)',
+        shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 24,
+      }}>
+        <Text style={{ fontSize: 44 }}>{s.emoji}</Text>
       </View>
-      <Title style={{ textAlign: 'center' }}>{s.title}</Title>
-      <Body style={{ textAlign: 'center', color: c.textSecondary, marginTop: 10, maxWidth: 320 }}>
+
+      <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.3 }}>
+        {s.title}
+      </Text>
+      <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 15, textAlign: 'center', marginTop: 12, lineHeight: 22, maxWidth: 300 }}>
         {s.body}
-      </Body>
-      <Row style={{ gap: 6, marginVertical: 20 }}>
+      </Text>
+
+      {/* Dots */}
+      <Row style={{ gap: 6, marginVertical: 28 }}>
         {SLIDES.map((_, i) => (
-          <View
-            key={i}
-            style={{
-              width: i === slide ? 18 : 7, height: 7, borderRadius: 4,
-              backgroundColor: i === slide ? c.accent : c.border,
-            }}
-          />
+          <View key={i} style={{
+            width: i === slide ? 22 : 7, height: 7, borderRadius: 4,
+            backgroundColor: i === slide ? c.accent : 'rgba(167,139,250,0.25)',
+            shadowColor: i === slide ? '#7C3AED' : 'transparent',
+            shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 6,
+          }} />
         ))}
       </Row>
-      <Button
-        label={last ? 'Get started' : 'Next'}
+
+      <TouchableOpacity
         onPress={() => (last ? onDone() : setSlide(slide + 1))}
-        style={{ alignSelf: 'stretch' }}
-      />
+        style={{
+          alignSelf: 'stretch', paddingVertical: 15, borderRadius: 16,
+          alignItems: 'center',
+          backgroundColor: 'rgba(124,58,237,0.35)',
+          borderWidth: 1, borderColor: 'rgba(167,139,250,0.5)',
+          shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 14,
+        }}
+      >
+        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{last ? 'Get started' : 'Next'}</Text>
+      </TouchableOpacity>
+
       {!last && (
-        <TouchableOpacity style={{ marginTop: 16 }} onPress={onDone}>
-          <Muted>Skip</Muted>
+        <TouchableOpacity style={{ marginTop: 18 }} onPress={onDone}>
+          <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Skip</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -81,34 +84,22 @@ export function AuthScreen() {
 
   const submit = async () => {
     if (!email.trim() || !password) return;
-    setBusy(true);
-    setError('');
-    setNotice('');
+    setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'signup') {
         const { error: err, data } = await supabase.auth.signUp({ email: email.trim(), password });
         if (err) throw err;
-        if (!data.session) {
-          setNotice('Account created — check your email to confirm, then sign in.');
-          setMode('signin');
-        }
+        if (!data.session) { setNotice('Account created — check your email to confirm, then sign in.'); setMode('signin'); }
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (err) throw err;
       }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
   };
 
   const signInWithProvider = async (provider) => {
-    setBusy(true);
-    setError('');
+    setBusy(true); setError('');
     try {
       if (Platform.OS === 'web') {
         const { error: err } = await supabase.auth.signInWithOAuth({ provider });
@@ -116,108 +107,97 @@ export function AuthScreen() {
         return;
       }
       const redirectTo = Linking.createURL('auth-callback');
-      const { data, error: err } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo, skipBrowserRedirect: true },
-      });
+      const { data, error: err } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: true } });
       if (err) throw err;
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
       if (result.type === 'success' && result.url) {
         const { params, errorCode } = Linking.parse(result.url);
         if (errorCode) throw new Error(errorCode);
         if (params.access_token && params.refresh_token) {
-          const { error: sessErr } = await supabase.auth.setSession({
-            access_token: params.access_token,
-            refresh_token: params.refresh_token,
-          });
+          const { error: sessErr } = await supabase.auth.setSession({ access_token: params.access_token, refresh_token: params.refresh_token });
           if (sessErr) throw sessErr;
         }
       }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
   };
 
   return (
-    <View style={{ padding: 24, paddingTop: 48 }}>
-      <View style={{ alignItems: 'center', marginBottom: 28 }}>
-        <View
-          style={{
-            width: 64, height: 64, borderRadius: 20, backgroundColor: c.accentSoft,
-            alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-          }}
-        >
-          <Icon name="headset" size={30} color={c.accent} />
+    <View style={{ padding: 28, paddingTop: 56 }}>
+      {/* Logo */}
+      <View style={{ alignItems: 'center', marginBottom: 36 }}>
+        <View style={{
+          width: 72, height: 72, borderRadius: 22,
+          backgroundColor: 'rgba(124,58,237,0.2)',
+          alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+          borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)',
+          shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 20,
+        }}>
+          <Text style={{ fontSize: 34 }}>🎓</Text>
         </View>
-        <Title>PDF to Audio</Title>
-        <Muted style={{ marginTop: 4 }}>
+        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.3 }}>
+          Study<Text style={{ color: c.accent }}>Lab</Text>
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, marginTop: 4 }}>
           {mode === 'signin' ? 'Sign in to your library' : 'Create your account'}
-        </Muted>
+        </Text>
       </View>
 
-      <Input
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-        style={{ marginBottom: 10 }}
-      />
-      <Input
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        onSubmitEditing={submit}
-        style={{ marginBottom: 10 }}
-      />
+      <Input placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} style={{ marginBottom: 10 }} />
+      <Input placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} onSubmitEditing={submit} style={{ marginBottom: 10 }} />
 
       <ErrorText>{error}</ErrorText>
       {notice ? <Text style={{ color: c.success, fontSize: 13, marginBottom: 8 }}>{notice}</Text> : null}
 
-      <Button
-        label={busy ? '…' : mode === 'signin' ? 'Sign in' : 'Sign up'}
-        onPress={submit}
-        disabled={busy}
-      />
-
       <TouchableOpacity
-        style={{ marginTop: 16, alignItems: 'center' }}
-        onPress={() => {
-          setMode(mode === 'signin' ? 'signup' : 'signin');
-          setError('');
-          setNotice('');
+        onPress={submit} disabled={busy}
+        style={{
+          paddingVertical: 15, borderRadius: 16, alignItems: 'center',
+          backgroundColor: 'rgba(124,58,237,0.35)',
+          borderWidth: 1, borderColor: 'rgba(167,139,250,0.5)',
+          shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: busy ? 0 : 0.8, shadowRadius: 14,
+          opacity: busy ? 0.6 : 1,
         }}
       >
+        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
+          {busy ? '…' : mode === 'signin' ? 'Sign in' : 'Sign up'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setNotice(''); }}>
         <Text style={{ color: c.accent, fontSize: 13 }}>
           {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
         </Text>
       </TouchableOpacity>
 
-      <Row style={{ gap: 10, marginVertical: 20 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
-        <Muted>or</Muted>
-        <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
-      </Row>
+      <NeonBar style={{ marginVertical: 20 }} />
 
-      <Button
-        label="Continue with Google"
-        variant="secondary"
-        icon="logo-google"
-        onPress={() => signInWithProvider('google')}
-        disabled={busy}
-      />
+      <TouchableOpacity
+        onPress={() => signInWithProvider('google')} disabled={busy}
+        style={{
+          paddingVertical: 13, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)',
+          opacity: busy ? 0.5 : 1,
+        }}
+      >
+        <Text style={{ fontSize: 16 }}>G</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600' }}>Continue with Google</Text>
+      </TouchableOpacity>
+
       {Platform.OS !== 'android' && (
-        <Button
-          label="Continue with Apple"
-          variant="secondary"
-          icon="logo-apple"
-          onPress={() => signInWithProvider('apple')}
-          disabled={busy}
-          style={{ marginTop: 10 }}
-        />
+        <TouchableOpacity
+          onPress={() => signInWithProvider('apple')} disabled={busy}
+          style={{
+            marginTop: 10, paddingVertical: 13, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)',
+            opacity: busy ? 0.5 : 1,
+          }}
+        >
+          <Text style={{ fontSize: 16 }}>🍎</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600' }}>Continue with Apple</Text>
+        </TouchableOpacity>
       )}
     </View>
   );

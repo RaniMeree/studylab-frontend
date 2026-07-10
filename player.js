@@ -114,7 +114,14 @@ export function PlayerProvider({ children }) {
   const playChapter = async (chapter, { voiceId, chapters, docTitle }) => {
     setLoadingChapterId(chapter.id);
     try {
-      const data = await postJson(`/chapters/${chapter.id}/audio`, { voice_id: voiceId });
+      // Audio generation can be slow on first request (model download on server).
+      // Retry up to 3 times with 5s delay to survive server warm-up.
+      const data = await api(`/chapters/${chapter.id}/audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice_id: voiceId }),
+      }, { retries: 3, retryDelay: 5000 });
+
       const resumeAt =
         chapter.progress && !chapter.progress.completed && chapter.progress.position_seconds > 3
           ? chapter.progress.position_seconds
@@ -200,24 +207,36 @@ export function MiniPlayer() {
   if (!p?.track || p.expanded) return null;
   const pct = p.status.duration ? (100 * (p.status.currentTime || 0)) / p.status.duration : 0;
   return (
-    <View style={{ backgroundColor: c.card, borderTopWidth: 1, borderColor: c.border }}>
-      <View style={{ height: 3, backgroundColor: c.border }}>
-        <View style={{ width: `${pct}%`, height: 3, backgroundColor: c.accent }} />
+    <View style={{
+      backgroundColor: c.glass ? 'rgba(13,2,33,0.97)' : c.card,
+      borderTopWidth: 1,
+      borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+    }}>
+      {/* Neon progress bar */}
+      <View style={{ height: 2, backgroundColor: c.glass ? 'rgba(167,139,250,0.1)' : c.border }}>
+        <View style={{
+          width: `${pct}%`, height: 2,
+          backgroundColor: c.accent,
+          shadowColor: c.accent, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 4,
+        }} />
       </View>
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => p.setExpanded(true)}
-        style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, gap: 10 }}
+        style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 14, gap: 10 }}
       >
         <TouchableOpacity
           onPress={p.toggle}
           hitSlop={8}
           style={{
-            width: 36, height: 36, borderRadius: 18, backgroundColor: c.accent,
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: c.glass ? 'rgba(124,58,237,0.4)' : c.accent,
             alignItems: 'center', justifyContent: 'center',
+            borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.5)' : 'transparent',
+            shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 8,
           }}
         >
-          <Icon name={p.status.playing ? 'pause' : 'play'} size={18} color={c.onAccent} />
+          <Icon name={p.status.playing ? 'pause' : 'play'} size={18} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>
@@ -229,10 +248,10 @@ export function MiniPlayer() {
           </Muted>
         </View>
         <TouchableOpacity onPress={() => p.skip(10)} hitSlop={8}>
-          <Icon name="play-forward" size={18} />
+          <Icon name="play-forward" size={18} color={c.textMuted} />
         </TouchableOpacity>
         <TouchableOpacity onPress={p.stop} hitSlop={8}>
-          <Icon name="close" size={18} />
+          <Icon name="close" size={18} color={c.textMuted} />
         </TouchableOpacity>
       </TouchableOpacity>
     </View>
@@ -261,14 +280,18 @@ export function FullPlayer() {
   };
 
   return (
-    <View style={{ backgroundColor: c.card, borderTopWidth: 1, borderColor: c.border, maxHeight: 480 }}>
-      <View style={{ paddingHorizontal: 18, paddingTop: 10 }}>
+    <View style={{
+      backgroundColor: c.glass ? 'rgba(13,2,33,0.98)' : c.card,
+      borderTopWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.22)' : c.border,
+      maxHeight: 480,
+    }}>
+      <View style={{ paddingHorizontal: 18, paddingTop: 12 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <TouchableOpacity onPress={() => p.setExpanded(false)} hitSlop={8}>
-            <Icon name="chevron-down" size={22} />
+            <Icon name="chevron-down" size={22} color={c.textMuted} />
           </TouchableOpacity>
           <View style={{ flex: 1, marginHorizontal: 10 }}>
-            <Text numberOfLines={1} style={{ color: c.text, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
+            <Text numberOfLines={1} style={{ color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
               {p.track.label}
             </Text>
             {p.track.docTitle ? (
@@ -276,40 +299,43 @@ export function FullPlayer() {
             ) : null}
           </View>
           <TouchableOpacity onPress={p.stop} hitSlop={8}>
-            <Icon name="close" size={20} />
+            <Icon name="close" size={20} color={c.textMuted} />
           </TouchableOpacity>
         </Row>
 
         <Slider
-          style={{ width: '100%', height: 30, marginTop: 4 }}
+          style={{ width: '100%', height: 30, marginTop: 6 }}
           minimumValue={0}
           maximumValue={Math.max(p.status.duration || 0, 0.01)}
           value={p.status.currentTime || 0}
           minimumTrackTintColor={c.accent}
-          maximumTrackTintColor={c.border}
+          maximumTrackTintColor={c.glass ? 'rgba(167,139,250,0.15)' : c.border}
           thumbTintColor={c.accent}
           onSlidingComplete={(v) => p.player.seekTo(v)}
         />
-        <Row style={{ justifyContent: 'space-between' }}>
+        <Row style={{ justifyContent: 'space-between', marginTop: -4 }}>
           <Muted>{formatTime(p.status.currentTime)}</Muted>
           <Muted>{formatTime(p.status.duration)}</Muted>
         </Row>
 
-        <Row style={{ justifyContent: 'center', gap: 26, marginVertical: 6 }}>
+        <Row style={{ justifyContent: 'center', gap: 30, marginVertical: 8 }}>
           <TouchableOpacity onPress={() => p.skip(-10)} hitSlop={8}>
-            <Icon name="play-back" size={24} />
+            <Icon name="play-back" size={24} color={c.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={p.toggle}
             style={{
-              width: 54, height: 54, borderRadius: 27, backgroundColor: c.accent,
+              width: 58, height: 58, borderRadius: 29,
+              backgroundColor: c.glass ? 'rgba(124,58,237,0.4)' : c.accent,
               alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.55)' : 'transparent',
+              shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 16,
             }}
           >
-            <Icon name={p.status.playing ? 'pause' : 'play'} size={26} color={c.onAccent} />
+            <Icon name={p.status.playing ? 'pause' : 'play'} size={28} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => p.skip(10)} hitSlop={8}>
-            <Icon name="play-forward" size={24} />
+            <Icon name="play-forward" size={24} color={c.textMuted} />
           </TouchableOpacity>
         </Row>
 
@@ -319,43 +345,30 @@ export function FullPlayer() {
           ))}
         </Row>
         <Row style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 8 }}>
-          <Pill
-            label={p.autoPlayNext ? 'Auto-next on' : 'Auto-next off'}
-            active={p.autoPlayNext}
-            onPress={() => p.setAutoPlayNext((v) => !v)}
-          />
+          <Pill label={p.autoPlayNext ? 'Auto-next on' : 'Auto-next off'} active={p.autoPlayNext} onPress={() => p.setAutoPlayNext((v) => !v)} />
           {SLEEP_OPTIONS.map((m) => (
-            <Pill
-              key={m}
-              label={`Sleep ${m}m`}
-              active={p.sleepMinutes === m}
-              onPress={() => p.setSleepTimer(m)}
-            />
+            <Pill key={m} label={`Sleep ${m}m`} active={p.sleepMinutes === m} onPress={() => p.setSleepTimer(m)} />
           ))}
           {Platform.OS === 'web' && <Pill label="Download MP3" onPress={download} />}
-          {p.track.sentences?.length > 0 && (
-            <Pill label={copied ? 'Copied' : 'Copy text'} onPress={copyText} />
-          )}
+          {p.track.sentences?.length > 0 && <Pill label={copied ? 'Copied' : 'Copy text'} onPress={copyText} />}
         </Row>
       </View>
 
       {p.track.sentences?.length > 0 && (
-        <ScrollView
-          style={{
-            maxHeight: 190, backgroundColor: c.cardAlt, marginHorizontal: 18,
-            marginBottom: 14, borderRadius: 12, padding: 12,
-          }}
-        >
+        <ScrollView style={{
+          maxHeight: 180,
+          backgroundColor: c.glass ? 'rgba(255,255,255,0.03)' : c.cardAlt,
+          marginHorizontal: 18, marginBottom: 14, borderRadius: 12, padding: 12,
+          borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.12)' : c.border,
+        }}>
           <Text style={{ color: c.textSecondary, fontSize: 14, lineHeight: 23 }}>
             {p.track.sentences.map((s, i) => (
               <Text
                 key={i}
                 onPress={() => p.player.seekTo(s.start)}
-                style={
-                  i === p.currentSentenceIndex
-                    ? { backgroundColor: c.accentSoft, color: c.accent, fontWeight: '600' }
-                    : null
-                }
+                style={i === p.currentSentenceIndex
+                  ? { backgroundColor: c.glass ? 'rgba(124,58,237,0.3)' : c.accentSoft, color: c.accent, fontWeight: '700' }
+                  : null}
               >
                 {s.text}{' '}
               </Text>

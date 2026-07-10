@@ -5,7 +5,7 @@ import { UI_LANGUAGES, useT } from '../i18n';
 import { getOfferings, purchasePackage, restorePurchases } from '../purchases';
 import { supabase } from '../supabaseClient';
 import { useThemeColors } from '../theme';
-import { Body, Button, Card, ErrorText, Icon, Loading, Muted, Pill, Row, Title } from '../ui';
+import { Body, Button, Card, ErrorText, Icon, Loading, Muted, NeonBar, Pill, Row, Title } from '../ui';
 
 const STATUS_LABELS = {
   trial: 'Free trial',
@@ -18,6 +18,19 @@ const PRIVACY = `We store your account email, the documents you upload, and the 
 
 const TERMS = `PDF to Audio converts documents you own or have the right to use into audio and study material for personal use. Do not upload content you are not permitted to copy. The service includes a 3-day free trial; afterwards a subscription is required, billed through your app store or Stripe and cancelable there at any time. The service is provided "as is" without warranty; AI-generated summaries, answers, and quizzes may contain mistakes — verify important information against the original material.`;
 
+function GlassRow({ children, style }) {
+  const c = useThemeColors();
+  return (
+    <View style={[{
+      backgroundColor: c.glass ? 'rgba(255,255,255,0.04)' : c.card,
+      borderRadius: 16, padding: 14, marginBottom: 10,
+      borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+    }, style]}>
+      {children}
+    </View>
+  );
+}
+
 export function PlanList({ subscription, onRefreshSubscription, onDone }) {
   const c = useThemeColors();
   const [offerings, setOfferings] = useState(null);
@@ -29,43 +42,48 @@ export function PlanList({ subscription, onRefreshSubscription, onDone }) {
   }, []);
 
   const buy = async (pkg) => {
-    setPurchasing(true);
-    setError('');
+    setPurchasing(true); setError('');
     try {
       await purchasePackage(pkg);
       await onRefreshSubscription();
       onDone?.();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setPurchasing(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setPurchasing(false); }
   };
 
   return (
     <View>
       <ErrorText>{error}</ErrorText>
       {offerings === null && <Loading label="Loading plans…" />}
-      {offerings?.length === 0 && !error && (
-        <Muted>No subscription plans are available right now. Try again later.</Muted>
-      )}
+      {offerings?.length === 0 && !error && <Muted>No subscription plans are available right now. Try again later.</Muted>}
       {offerings?.map((pkg) => {
         const productId = pkg.webBillingProduct?.identifier ?? pkg.storeProduct?.identifier;
         const isCurrent = productId && productId === subscription?.product_id;
         return (
-          <Card
+          <TouchableOpacity
             key={pkg.identifier}
             onPress={purchasing || isCurrent ? undefined : () => buy(pkg)}
-            style={{ marginTop: 8, borderColor: isCurrent ? c.accent : c.border, opacity: purchasing ? 0.6 : 1 }}
+            activeOpacity={0.75}
+            style={{
+              marginTop: 8, padding: 14, borderRadius: 16,
+              backgroundColor: isCurrent
+                ? (c.glass ? 'rgba(124,58,237,0.2)' : c.accentSoft)
+                : (c.glass ? 'rgba(255,255,255,0.04)' : c.card),
+              borderWidth: 1,
+              borderColor: isCurrent
+                ? (c.glass ? 'rgba(167,139,250,0.5)' : c.accent)
+                : (c.glass ? 'rgba(167,139,250,0.2)' : c.border),
+              opacity: purchasing ? 0.6 : 1,
+            }}
           >
-            <Body style={{ fontWeight: '600' }}>
+            <Text style={{ color: c.text, fontWeight: '700', fontSize: 14 }}>
               {pkg.webBillingProduct?.title ?? pkg.storeProduct?.title ?? pkg.identifier}
-              {isCurrent ? '  (current)' : ''}
-            </Body>
-            <Muted style={{ marginTop: 2 }}>
+              {isCurrent ? '  ✓' : ''}
+            </Text>
+            <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 3 }}>
               {pkg.webBillingProduct?.currentPrice?.formattedPrice ?? pkg.storeProduct?.priceString ?? ''}
-            </Muted>
-          </Card>
+            </Text>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -79,32 +97,30 @@ export function PaywallScreen({ subscription, onRefreshSubscription }) {
 
   const restore = async () => {
     setBusy(true);
-    try {
-      await restorePurchases();
-      await onRefreshSubscription();
-    } catch {}
+    try { await restorePurchases(); await onRefreshSubscription(); } catch {}
     setBusy(false);
   };
 
   return (
-    <View style={{ padding: 20, paddingTop: 40 }}>
-      <View style={{ alignItems: 'center', marginBottom: 18 }}>
-        <View
-          style={{
-            width: 70, height: 70, borderRadius: 22, backgroundColor: c.accentSoft,
-            alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-          }}
-        >
-          <Icon name="lock-open-outline" size={32} color={c.accent} />
+    <View style={{ padding: 24, paddingTop: 50 }}>
+      <View style={{ alignItems: 'center', marginBottom: 28 }}>
+        <View style={{
+          width: 80, height: 80, borderRadius: 24,
+          backgroundColor: 'rgba(124,58,237,0.2)',
+          alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+          borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)',
+          shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 20,
+        }}>
+          <Text style={{ fontSize: 36 }}>🔓</Text>
         </View>
-        <Title style={{ textAlign: 'center' }}>
-          {expired ? 'Your free trial has ended' : 'Subscribe to PDF to Audio'}
-        </Title>
-        <Body style={{ color: c.textSecondary, textAlign: 'center', marginTop: 8 }}>
+        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', textAlign: 'center' }}>
+          {expired ? 'Your free trial has ended' : 'Unlock StudyLab'}
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 8, fontSize: 14, lineHeight: 21 }}>
           {expired
             ? 'Subscribe to keep converting documents, generating summaries, flashcards, and audio.'
             : 'Choose a plan to continue.'}
-        </Body>
+        </Text>
       </View>
 
       <PlanList subscription={subscription} onRefreshSubscription={onRefreshSubscription} />
@@ -113,7 +129,7 @@ export function PaywallScreen({ subscription, onRefreshSubscription }) {
         <Text style={{ color: c.accent, fontSize: 13 }}>Restore purchases</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => supabase.auth.signOut()} style={{ marginTop: 14, alignItems: 'center' }}>
-        <Muted>Sign out</Muted>
+        <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Sign out</Text>
       </TouchableOpacity>
     </View>
   );
@@ -131,31 +147,16 @@ export function ProfileScreen({ session, subscription, onRefreshSubscription, se
   const [deleting, setDeleting] = useState(false);
 
   const restore = async () => {
-    setBusy(true);
-    setError('');
-    setNotice('');
-    try {
-      await restorePurchases();
-      await onRefreshSubscription();
-      setNotice('Purchases restored.');
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    setBusy(true); setError(''); setNotice('');
+    try { await restorePurchases(); await onRefreshSubscription(); setNotice('Purchases restored.'); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
   };
 
   const deleteAccount = async () => {
-    setDeleting(true);
-    setError('');
-    try {
-      await api('/account', { method: 'DELETE' });
-      await supabase.auth.signOut();
-    } catch (e) {
-      setError(e.message);
-      setDeleting(false);
-      setConfirmingDelete(false);
-    }
+    setDeleting(true); setError('');
+    try { await api('/account', { method: 'DELETE' }); await supabase.auth.signOut(); }
+    catch (e) { setError(e.message); setDeleting(false); setConfirmingDelete(false); }
   };
 
   const statusLabel = STATUS_LABELS[subscription?.status] ?? subscription?.status ?? 'Unknown';
@@ -164,109 +165,107 @@ export function ProfileScreen({ session, subscription, onRefreshSubscription, se
 
   return (
     <View style={{ padding: 18 }}>
+      <Text style={{ fontSize: 10, color: c.textMuted, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700', marginBottom: 6 }}>
+        Account
+      </Text>
       <Title>Profile</Title>
+      <NeonBar style={{ marginTop: 14, marginBottom: 14 }} />
 
-      <Card style={{ marginTop: 16 }}>
+      {/* User card */}
+      <GlassRow>
         <Row style={{ gap: 12 }}>
-          <View
-            style={{
-              width: 44, height: 44, borderRadius: 22, backgroundColor: c.accentSoft,
-              alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <Text style={{ color: c.accent, fontWeight: '600' }}>
+          <View style={{
+            width: 46, height: 46, borderRadius: 23,
+            backgroundColor: 'rgba(124,58,237,0.25)',
+            alignItems: 'center', justifyContent: 'center',
+            borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)',
+            shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 10,
+          }}>
+            <Text style={{ color: c.accent, fontWeight: '800', fontSize: 18 }}>
               {session.user.email?.[0]?.toUpperCase() ?? '?'}
             </Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Body numberOfLines={1} style={{ fontWeight: '600' }}>{session.user.email}</Body>
-            <Muted style={{ marginTop: 2 }}>
+            <Text numberOfLines={1} style={{ color: c.text, fontWeight: '700', fontSize: 14 }}>{session.user.email}</Text>
+            <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>
               Signed in with {session.user.app_metadata?.provider ?? 'email'}
-            </Muted>
+            </Text>
           </View>
         </Row>
-      </Card>
+      </GlassRow>
 
-      <Card style={{ marginTop: 10, borderColor: isActive ? c.success : c.border }}>
+      {/* Subscription status */}
+      <GlassRow style={{ borderColor: isActive ? 'rgba(52,211,153,0.35)' : c.glass ? 'rgba(167,139,250,0.2)' : c.border }}>
         <Row style={{ gap: 10 }}>
-          <Icon
-            name={isActive ? 'checkmark-circle' : isTrial ? 'time-outline' : 'alert-circle-outline'}
-            size={20}
-            color={isActive ? c.success : isTrial ? c.accent : c.warn}
-          />
+          <Text style={{ fontSize: 20 }}>
+            {isActive ? '✅' : isTrial ? '⏳' : '⚠️'}
+          </Text>
           <View style={{ flex: 1 }}>
-            <Body style={{ fontWeight: '600' }}>{statusLabel}</Body>
+            <Text style={{ color: isActive ? c.success : c.text, fontWeight: '700', fontSize: 14 }}>{statusLabel}</Text>
             {isTrial && (
-              <Muted style={{ marginTop: 2 }}>
-                {subscription.trial_days_left} day{subscription.trial_days_left === 1 ? '' : 's'} left — ends{' '}
-                {new Date(subscription.trial_ends_at).toLocaleDateString()}
-              </Muted>
+              <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>
+                {subscription.trial_days_left} day{subscription.trial_days_left === 1 ? '' : 's'} left — ends {new Date(subscription.trial_ends_at).toLocaleDateString()}
+              </Text>
             )}
-            {subscription?.product_id && <Muted style={{ marginTop: 2 }}>Plan: {subscription.product_id}</Muted>}
-            {subscription?.platform && (
-              <Muted style={{ marginTop: 2 }}>
-                Billed via {subscription.platform === 'stripe' ? 'Stripe (web)'
-                  : subscription.platform === 'apple' || subscription.platform === 'app_store' ? 'App Store'
-                  : 'Google Play'}
-              </Muted>
-            )}
+            {subscription?.product_id && <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>Plan: {subscription.product_id}</Text>}
             {subscription?.current_period_end && (
-              <Muted style={{ marginTop: 2 }}>
+              <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>
                 Renews {new Date(subscription.current_period_end).toLocaleDateString()}
-              </Muted>
+              </Text>
             )}
           </View>
         </Row>
-      </Card>
+      </GlassRow>
 
       <ErrorText>{error}</ErrorText>
-      {notice ? <Text style={{ color: c.success, fontSize: 13, marginTop: 8 }}>{notice}</Text> : null}
+      {notice ? <Text style={{ color: c.success, fontSize: 13, marginTop: 4, marginBottom: 8 }}>{notice}</Text> : null}
 
-      <Button
-        label={isActive ? t('changePlan') : t('subscribeNow')}
-        onPress={() => setShowPlans((v) => !v)}
-        disabled={busy}
-        style={{ marginTop: 14 }}
-      />
-      {showPlans && (
-        <PlanList
-          subscription={subscription}
-          onRefreshSubscription={onRefreshSubscription}
-          onDone={() => setShowPlans(false)}
-        />
-      )}
+      {/* Subscribe button */}
+      <TouchableOpacity
+        onPress={() => setShowPlans((v) => !v)} disabled={busy}
+        style={{
+          paddingVertical: 14, borderRadius: 16, alignItems: 'center',
+          backgroundColor: 'rgba(124,58,237,0.3)',
+          borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)',
+          shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 12,
+          marginBottom: 10,
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+          {isActive ? t('changePlan') : t('subscribeNow')}
+        </Text>
+      </TouchableOpacity>
+
+      {showPlans && <PlanList subscription={subscription} onRefreshSubscription={onRefreshSubscription} onDone={() => setShowPlans(false)} />}
 
       {isActive && (
-        <Muted style={{ marginTop: 10 }}>
-          To cancel, use {subscription?.platform === 'stripe'
-            ? 'the billing portal link in your subscription email'
-            : subscription?.platform === 'apple' || subscription?.platform === 'app_store'
-            ? 'Settings → Apple ID → Subscriptions on your iPhone'
+        <Text style={{ color: c.textMuted, fontSize: 12, marginBottom: 10, lineHeight: 18 }}>
+          To cancel, use {subscription?.platform === 'apple' || subscription?.platform === 'app_store'
+            ? 'Settings → Apple ID → Subscriptions'
             : 'Google Play → Payments and subscriptions'}. Access continues until the period ends.
-        </Muted>
+        </Text>
       )}
 
-      <Card style={{ marginTop: 18 }}>
-        <Muted style={{ marginBottom: 8 }}>{t('theme')}</Muted>
+      <NeonBar style={{ marginVertical: 14 }} />
+
+      {/* Theme & language */}
+      <GlassRow>
+        <Text style={{ color: c.textMuted, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700', marginBottom: 10 }}>{t('theme')}</Text>
         <Row style={{ gap: 6, flexWrap: 'wrap' }}>
           <Pill label={t('system')} active={settings?.themePref === 'system'} onPress={() => onChangeTheme('system')} />
           <Pill label={t('light')} active={settings?.themePref === 'light'} onPress={() => onChangeTheme('light')} />
-          <Pill label={t('dark')} active={settings?.themePref === 'dark'} onPress={() => onChangeTheme('dark')} />
+          <Pill label="Neon" active={settings?.themePref === 'dark'} onPress={() => onChangeTheme('dark')} />
         </Row>
-        <Muted style={{ marginTop: 14, marginBottom: 8 }}>{t('uiLanguage')}</Muted>
+        <Text style={{ color: c.textMuted, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700', marginTop: 14, marginBottom: 10 }}>{t('uiLanguage')}</Text>
         <Row style={{ gap: 6, flexWrap: 'wrap' }}>
           {UI_LANGUAGES.map((l) => (
-            <Pill
-              key={l.code}
-              label={l.label}
-              active={settings?.uiLang === l.code}
-              onPress={() => onChangeLang(l.code)}
-            />
+            <Pill key={l.code} label={l.label} active={settings?.uiLang === l.code} onPress={() => onChangeLang(l.code)} />
           ))}
         </Row>
-      </Card>
+      </GlassRow>
 
-      <Row style={{ gap: 20, marginTop: 20 }}>
+      {/* Actions */}
+      <Row style={{ gap: 20, marginTop: 14 }}>
         <TouchableOpacity onPress={restore} disabled={busy}>
           <Text style={{ color: c.accent, fontSize: 13 }}>{t('restorePurchases')}</Text>
         </TouchableOpacity>
@@ -275,53 +274,46 @@ export function ProfileScreen({ session, subscription, onRefreshSubscription, se
         </TouchableOpacity>
       </Row>
 
-      <Row style={{ gap: 20, marginTop: 18 }}>
+      <Row style={{ gap: 20, marginTop: 14 }}>
         <TouchableOpacity onPress={() => setLegalOpen(legalOpen === 'privacy' ? null : 'privacy')}>
-          <Muted>Privacy policy</Muted>
+          <Text style={{ color: c.textMuted, fontSize: 13 }}>Privacy policy</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setLegalOpen(legalOpen === 'terms' ? null : 'terms')}>
-          <Muted>Terms of service</Muted>
+          <Text style={{ color: c.textMuted, fontSize: 13 }}>Terms of service</Text>
         </TouchableOpacity>
       </Row>
+
       {legalOpen && (
-        <Card style={{ marginTop: 10 }}>
-          <Body style={{ fontWeight: '600', marginBottom: 6 }}>
+        <GlassRow style={{ marginTop: 10 }}>
+          <Text style={{ color: c.accent, fontWeight: '700', marginBottom: 6 }}>
             {legalOpen === 'privacy' ? 'Privacy policy' : 'Terms of service'}
-          </Body>
-          <Body style={{ color: c.textSecondary, fontSize: 13, lineHeight: 20 }}>
+          </Text>
+          <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 20 }}>
             {legalOpen === 'privacy' ? PRIVACY : TERMS}
-          </Body>
-        </Card>
+          </Text>
+        </GlassRow>
       )}
 
-      <View style={{ marginTop: 26, paddingTop: 16, borderTopWidth: 1, borderColor: c.border }}>
-        <Muted style={{ marginBottom: 8 }}>Danger zone</Muted>
-        {!confirmingDelete ? (
-          <TouchableOpacity onPress={() => setConfirmingDelete(true)}>
-            <Text style={{ color: c.danger, fontSize: 13 }}>Delete my account and all data</Text>
-          </TouchableOpacity>
-        ) : (
-          <View>
-            <Body style={{ color: c.danger, fontSize: 13, lineHeight: 20 }}>
-              This permanently deletes your account, courses, documents, audio, summaries, flashcards,
-              notes, and bookmarks. This cannot be undone.
-              {isActive
-                ? ' Note: cancel your subscription in the store first — deleting the account does not stop billing.'
-                : ''}
-            </Body>
-            <Row style={{ gap: 8, marginTop: 12 }}>
-              <Button
-                label={deleting ? 'Deleting…' : 'Yes, delete everything'}
-                variant="danger"
-                small
-                onPress={deleteAccount}
-                disabled={deleting}
-              />
-              <Button label="Cancel" variant="secondary" small onPress={() => setConfirmingDelete(false)} disabled={deleting} />
-            </Row>
-          </View>
-        )}
-      </View>
+      <NeonBar style={{ marginTop: 20, marginBottom: 14 }} />
+
+      {/* Danger zone */}
+      <Text style={{ color: c.textMuted, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700', marginBottom: 10 }}>Danger zone</Text>
+      {!confirmingDelete ? (
+        <TouchableOpacity onPress={() => setConfirmingDelete(true)}>
+          <Text style={{ color: c.danger, fontSize: 13 }}>Delete my account and all data</Text>
+        </TouchableOpacity>
+      ) : (
+        <View>
+          <Text style={{ color: c.danger, fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
+            This permanently deletes your account, courses, documents, audio, summaries, flashcards, notes, and bookmarks. This cannot be undone.
+          </Text>
+          <Row style={{ gap: 8 }}>
+            <Button label={deleting ? 'Deleting…' : 'Yes, delete everything'} variant="danger" small onPress={deleteAccount} disabled={deleting} />
+            <Button label="Cancel" variant="secondary" small onPress={() => setConfirmingDelete(false)} disabled={deleting} />
+          </Row>
+        </View>
+      )}
+      <View style={{ height: 30 }} />
     </View>
   );
 }

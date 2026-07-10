@@ -1,4 +1,5 @@
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// GlowBox, NeonBar, TypeBadge exported below use Text — already imported above
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from './theme';
 
@@ -10,20 +11,65 @@ export function Icon({ name, size = 20, color, style }) {
 export function Card({ children, style, onPress, tint }) {
   const c = useThemeColors();
   const base = {
-    backgroundColor: tint ?? c.card,
-    borderRadius: 14,
+    backgroundColor: tint ?? (c.glass ? 'rgba(255,255,255,0.04)' : c.card),
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: c.border,
+    borderColor: c.glass ? (c.borderGlass ?? c.border) : c.border,
     padding: 14,
   };
   if (onPress) {
     return (
-      <TouchableOpacity style={[base, style]} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity style={[base, style]} onPress={onPress} activeOpacity={0.75}>
         {children}
       </TouchableOpacity>
     );
   }
   return <View style={[base, style]}>{children}</View>;
+}
+
+// Glowing icon box used in neon glass design
+export function GlowBox({ emoji, color = '#7C3AED', size = 38 }) {
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: size * 0.28,
+      backgroundColor: `${color}33`,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: color, shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.9, shadowRadius: 10, elevation: 6,
+    }}>
+      <Text style={{ fontSize: size * 0.48 }}>{emoji}</Text>
+    </View>
+  );
+}
+
+// Neon divider bar
+export function NeonBar({ style }) {
+  return (
+    <View style={[{
+      height: 1,
+      backgroundColor: 'rgba(124,58,237,0.45)',
+      marginVertical: 10,
+    }, style]} />
+  );
+}
+
+// Material type badge (PDF / IMG / URL)
+export function TypeBadge({ type }) {
+  const map = {
+    pdf:   { label: 'PDF', bg: 'rgba(239,68,68,0.18)',   fg: '#FCA5A5', border: 'rgba(239,68,68,0.4)' },
+    image: { label: 'IMG', bg: 'rgba(34,197,94,0.18)',   fg: '#86EFAC', border: 'rgba(34,197,94,0.4)' },
+    url:   { label: 'URL', bg: 'rgba(59,130,246,0.18)',  fg: '#93C5FD', border: 'rgba(59,130,246,0.4)' },
+    text:  { label: 'TXT', bg: 'rgba(251,191,36,0.18)',  fg: '#FDE68A', border: 'rgba(251,191,36,0.4)' },
+  };
+  const t = map[type] ?? map.text;
+  return (
+    <View style={{
+      paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20,
+      backgroundColor: t.bg, borderWidth: 1, borderColor: t.border,
+    }}>
+      <Text style={{ fontSize: 9, fontWeight: '800', color: t.fg, letterSpacing: 0.5 }}>{t.label}</Text>
+    </View>
+  );
 }
 
 export function Row({ children, style }) {

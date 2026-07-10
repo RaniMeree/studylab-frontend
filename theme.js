@@ -18,30 +18,37 @@ const light = {
   dangerSoft: '#FDEBEB',
   warn: '#B45309',
   warnSoft: '#FBF0DC',
+  glass: false,
 };
 
+// Neon Glass dark theme
 const dark = {
-  page: '#101012',
-  card: '#1B1B1F',
-  cardAlt: '#242429',
-  border: '#2E2E34',
-  text: '#F2F1EE',
-  textSecondary: '#A7A5A0',
-  textMuted: '#6E6C67',
-  accent: '#8B84F2',
-  accentSoft: '#2A2843',
-  onAccent: '#101012',
-  success: '#4ADE80',
-  successSoft: '#173323',
+  page: '#0D0221',
+  card: '#130A2A',
+  cardAlt: '#1A0F35',
+  border: '#3D2A7A',
+  borderGlass: 'rgba(167,139,250,0.22)',
+  text: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.72)',
+  textMuted: 'rgba(255,255,255,0.38)',
+  accent: '#A78BFA',
+  accentBright: '#7C3AED',
+  accentSoft: 'rgba(124,58,237,0.18)',
+  onAccent: '#FFFFFF',
+  success: '#34D399',
+  successSoft: 'rgba(52,211,153,0.15)',
   danger: '#F87171',
-  dangerSoft: '#3A1D1D',
+  dangerSoft: 'rgba(248,113,113,0.15)',
   warn: '#FBBF24',
-  warnSoft: '#3A2E14',
+  warnSoft: 'rgba(251,191,36,0.15)',
+  cyan: '#22D3EE',
+  pink: '#F472B6',
+  glass: true,
 };
 
 export const palettes = { light, dark };
 
-export const ThemeContext = createContext(light);
+export const ThemeContext = createContext(dark);
 
 export function useThemeColors() {
   return useContext(ThemeContext);

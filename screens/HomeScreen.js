@@ -4,24 +4,16 @@ import { api, postJson } from '../api';
 import { useT } from '../i18n';
 import { usePlayer } from '../player';
 import { useThemeColors } from '../theme';
-import { Body, Card, EmptyState, ErrorText, Icon, Input, Muted, ProgressBar, Row, Title } from '../ui';
+import { Body, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Muted, NeonBar, ProgressBar, Row, Title } from '../ui';
 
-const COURSE_ICONS = ['flask', 'language', 'book', 'calculator', 'globe', 'musical-notes'];
-
-function StatBox({ value, label }) {
-  const c = useThemeColors();
-  return (
-    <View
-      style={{
-        flex: 1, backgroundColor: c.cardAlt, borderRadius: 12,
-        paddingVertical: 12, alignItems: 'center',
-      }}
-    >
-      <Text style={{ color: c.text, fontSize: 18, fontWeight: '600' }}>{value}</Text>
-      <Muted style={{ fontSize: 11, marginTop: 2 }}>{label}</Muted>
-    </View>
-  );
-}
+const COURSE_GLOWS = [
+  { emoji: '🧪', color: '#7C3AED' },
+  { emoji: '📐', color: '#0EA5E9' },
+  { emoji: '🧬', color: '#EC4899' },
+  { emoji: '📚', color: '#10B981' },
+  { emoji: '🌍', color: '#F59E0B' },
+  { emoji: '🎵', color: '#EF4444' },
+];
 
 export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
   const c = useThemeColors();
@@ -72,29 +64,74 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
 
   return (
     <View style={{ padding: 18 }}>
-      <Title>{greeting}{name ? `, ${name}` : ''}</Title>
+      {/* Header */}
+      <Row style={{ justifyContent: 'space-between', marginBottom: 4 }}>
+        <View>
+          <Text style={{ fontSize: 11, color: c.textMuted, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700' }}>
+            Study<Text style={{ color: c.accent }}>Lab</Text>
+          </Text>
+          <Title style={{ fontSize: 20, marginTop: 2 }}>{greeting}{name ? `, ${name}` : ''}</Title>
+        </View>
+        {stats && (
+          <View style={{
+            backgroundColor: c.glass ? 'rgba(167,139,250,0.12)' : c.cardAlt,
+            borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+            borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.25)' : c.border,
+          }}>
+            <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>✦ {stats.minutes_listened ?? 0} min</Text>
+          </View>
+        )}
+      </Row>
 
-      {stats && (stats.minutes_listened > 0 || stats.cards_reviewed > 0 || stats.quizzes_taken > 0) && (
-        <Row style={{ gap: 8, marginTop: 14 }}>
-          <StatBox value={`🔥 ${stats.streak_days}`} label={t('dayStreak')} />
-          <StatBox value={stats.minutes_listened} label={t('minListened')} />
-          <StatBox value={stats.cards_known} label={t('cardsKnown')} />
-          <StatBox value={stats.quizzes_taken} label={t('quizzes')} />
-        </Row>
+      {/* Stats row */}
+      {stats && (stats.streak_days > 0 || stats.cards_known > 0) && (
+        <>
+          <NeonBar style={{ marginTop: 12, marginBottom: 12 }} />
+          <Row style={{ gap: 8 }}>
+            {[
+              { v: `🔥 ${stats.streak_days}`, l: t('dayStreak') },
+              { v: stats.minutes_listened, l: t('minListened') },
+              { v: stats.cards_known, l: t('cardsKnown') },
+              { v: stats.quizzes_taken, l: t('quizzes') },
+            ].map((s, i) => (
+              <View key={i} style={{
+                flex: 1, backgroundColor: c.glass ? 'rgba(255,255,255,0.04)' : c.cardAlt,
+                borderRadius: 12, paddingVertical: 10, alignItems: 'center',
+                borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.15)' : c.border,
+              }}>
+                <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{s.v}</Text>
+                <Text style={{ color: c.textMuted, fontSize: 10, marginTop: 2 }}>{s.l}</Text>
+              </View>
+            ))}
+          </Row>
+        </>
       )}
 
+      {/* Continue listening */}
       {resume && (
         <>
-          <Muted style={{ marginTop: 18, marginBottom: 8, fontSize: 13 }}>{t('continueListening')}</Muted>
-          <Card tint={c.accentSoft} onPress={() => onOpenDocument(resume.course_id, resume.document_id)}>
+          <NeonBar style={{ marginTop: 16, marginBottom: 12 }} />
+          <Text style={{ fontSize: 10, color: c.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 8 }}>
+            {t('continueListening')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => onOpenDocument(resume.course_id, resume.document_id)}
+            activeOpacity={0.75}
+            style={{
+              backgroundColor: c.glass ? 'rgba(124,58,237,0.12)' : c.accentSoft,
+              borderRadius: 16, padding: 14,
+              borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.3)' : c.border,
+            }}
+          >
             <Row style={{ gap: 12 }}>
-              <View
-                style={{
-                  width: 40, height: 40, borderRadius: 20, backgroundColor: c.accent,
-                  alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                <Icon name="play" size={18} color={c.onAccent} />
+              <View style={{
+                width: 40, height: 40, borderRadius: 20,
+                backgroundColor: c.glass ? 'rgba(124,58,237,0.35)' : c.accent,
+                alignItems: 'center', justifyContent: 'center',
+                shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.9, shadowRadius: 10,
+              }}>
+                <Icon name="play" size={18} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={{ color: c.accent, fontSize: 14, fontWeight: '600' }}>
@@ -105,11 +142,17 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
                 </View>
               </View>
             </Row>
-          </Card>
+          </TouchableOpacity>
         </>
       )}
 
-      <Muted style={{ marginTop: 18, marginBottom: 8, fontSize: 13 }}>{t('yourCourses')}</Muted>
+      {/* Courses */}
+      <NeonBar style={{ marginTop: 16, marginBottom: 12 }} />
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <Text style={{ fontSize: 10, color: c.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700' }}>
+          {t('yourCourses')}
+        </Text>
+      </Row>
 
       <Row style={{ gap: 8, marginBottom: 12 }}>
         <Input
@@ -123,35 +166,55 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
           onPress={createCourse}
           disabled={creating || !newName.trim()}
           style={{
-            width: 44, borderRadius: 12, backgroundColor: c.accent,
+            width: 44, height: 44, borderRadius: 12,
+            backgroundColor: c.glass ? 'rgba(124,58,237,0.4)' : c.accent,
             alignItems: 'center', justifyContent: 'center',
-            opacity: creating || !newName.trim() ? 0.5 : 1,
+            opacity: creating || !newName.trim() ? 0.4 : 1,
+            borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.4)' : 'transparent',
+            shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: creating || !newName.trim() ? 0 : 0.7, shadowRadius: 8,
           }}
         >
-          <Icon name="add" size={22} color={c.onAccent} />
+          <Icon name="add" size={22} color="#fff" />
         </TouchableOpacity>
       </Row>
 
       <ErrorText>{error}</ErrorText>
 
       {courses === null && <Muted>Loading…</Muted>}
-      {courses?.map((course, i) => (
-        <Card key={course.id} onPress={() => onOpenCourse(course.id)} style={{ marginBottom: 8 }}>
-          <Row style={{ gap: 12 }}>
-            <Icon name={COURSE_ICONS[i % COURSE_ICONS.length]} size={20} color={c.accent} />
-            <View style={{ flex: 1 }}>
-              <Body style={{ fontWeight: '600' }}>{course.name}</Body>
-              <Muted style={{ marginTop: 2 }}>
-                {course.document_count} file{course.document_count !== 1 ? 's' : ''}
-              </Muted>
+      {courses?.map((course, i) => {
+        const glow = COURSE_GLOWS[i % COURSE_GLOWS.length];
+        return (
+          <TouchableOpacity
+            key={course.id}
+            onPress={() => onOpenCourse(course.id)}
+            activeOpacity={0.75}
+            style={{
+              backgroundColor: c.glass ? 'rgba(255,255,255,0.03)' : c.card,
+              borderRadius: 16, marginBottom: 10,
+              borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+              overflow: 'hidden',
+            }}
+          >
+            <View style={{ padding: 14 }}>
+              <Row style={{ gap: 12 }}>
+                <GlowBox emoji={glow.emoji} color={glow.color} size={40} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{course.name}</Text>
+                  <Text style={{ color: c.textMuted, fontSize: 11, marginTop: 2 }}>
+                    {course.document_count} material{course.document_count !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => deleteCourse(course.id)} hitSlop={10}>
+                  <Icon name="trash-outline" size={16} color={c.textMuted} />
+                </TouchableOpacity>
+                <Icon name="chevron-forward" size={15} color={c.textMuted} />
+              </Row>
             </View>
-            <TouchableOpacity onPress={() => deleteCourse(course.id)} hitSlop={10}>
-              <Icon name="trash-outline" size={17} color={c.textMuted} />
-            </TouchableOpacity>
-            <Icon name="chevron-forward" size={16} color={c.textMuted} />
-          </Row>
-        </Card>
-      ))}
+          </TouchableOpacity>
+        );
+      })}
+
       {courses?.length === 0 && (
         <EmptyState
           icon="folder-open-outline"

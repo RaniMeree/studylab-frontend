@@ -9,7 +9,7 @@ import {
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, API_BASE } from './api';
+import { api, API_BASE, pingBackend } from './api';
 import { FullPlayer, MiniPlayer, PlayerProvider } from './player';
 import { configurePurchases } from './purchases';
 import { AddScreen } from './screens/AddScreen';
@@ -39,10 +39,10 @@ function TabBar({ tab, onChange, dueCount }) {
     <View
       style={{
         flexDirection: 'row',
-        backgroundColor: c.card,
+        backgroundColor: c.glass ? 'rgba(13,2,33,0.96)' : c.card,
         borderTopWidth: 1,
-        borderColor: c.border,
-        paddingVertical: 6,
+        borderColor: c.glass ? 'rgba(167,139,250,0.18)' : c.border,
+        paddingVertical: 8,
         paddingBottom: Math.max(insets.bottom, 10),
       }}
     >
@@ -52,14 +52,19 @@ function TabBar({ tab, onChange, dueCount }) {
           <TouchableOpacity
             key={item.key}
             onPress={() => onChange(item.key)}
-            style={{ flex: 1, alignItems: 'center', gap: 2 }}
+            style={{ flex: 1, alignItems: 'center', gap: 3 }}
           >
-            <View>
+            <View style={active && c.glass ? {
+              backgroundColor: 'rgba(124,58,237,0.22)',
+              borderRadius: 10, padding: 4,
+              shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.8, shadowRadius: 8,
+            } : { padding: 4 }}>
               <Icon name={active ? item.activeIcon : item.icon} size={22} color={active ? c.accent : c.textMuted} />
               {item.key === 'review' && dueCount > 0 && (
                 <View
                   style={{
-                    position: 'absolute', top: -3, right: -8, minWidth: 15, height: 15,
+                    position: 'absolute', top: -1, right: -6, minWidth: 15, height: 15,
                     borderRadius: 8, backgroundColor: c.danger,
                     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
                   }}
@@ -68,7 +73,7 @@ function TabBar({ tab, onChange, dueCount }) {
                 </View>
               )}
             </View>
-            <Text style={{ fontSize: 10, color: active ? c.accent : c.textMuted }}>{t(item.key)}</Text>
+            <Text style={{ fontSize: 10, color: active ? c.accent : c.textMuted, fontWeight: active ? '600' : '400' }}>{t(item.key)}</Text>
           </TouchableOpacity>
         );
       })}
@@ -171,7 +176,7 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
 }
 
 export default function App() {
-  const [themePref, setThemePref] = useState('system'); // system | light | dark
+  const [themePref, setThemePref] = useState('dark'); // system | light | dark
   const [uiLang, setUiLang] = useState('en');
   const palette = usePalette(themePref);
   const [session, setSession] = useState(undefined);
@@ -192,6 +197,7 @@ export default function App() {
     api('/subscription').then(setSubscription).catch(() => setSubscription(null));
 
   useEffect(() => {
+    pingBackend();
     AsyncStorage.getItem('onboarded')
       .then((v) => setOnboarded(v === '1'))
       .catch(() => setOnboarded(true));

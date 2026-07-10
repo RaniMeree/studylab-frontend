@@ -179,39 +179,49 @@ function ListenSection({ doc, voiceOptions, voiceId, setVoiceId, setError, refre
       )}
 
       <Label>{t('chapters')}</Label>
-      {doc.chapters.map((ch) => {
-        const isPlaying = player.track?.chapterId === ch.id;
-        const isLoading = player.loadingChapterId === ch.id;
-        const p = ch.progress;
-        const statusIcon = isPlaying
-          ? (player.status.playing ? 'pause' : 'play')
-          : p?.completed
-          ? 'checkmark-circle'
-          : 'play-circle-outline';
-        const statusColor = isPlaying ? c.accent : p?.completed ? c.success : c.textMuted;
-        const sub = p?.completed
-          ? t('completed')
-          : p && p.duration_seconds > 0
-          ? `${Math.round((100 * p.position_seconds) / p.duration_seconds)}% listened — tap to resume`
-          : `${ch.characters.toLocaleString()} characters`;
-        return (
-          <Card
-            key={ch.id}
-            onPress={() => (isPlaying ? player.toggle() : play(ch))}
-            style={{ marginBottom: 8, borderColor: isPlaying ? c.accent : c.border }}
-          >
-            <Row style={{ gap: 12 }}>
-              <Icon name={isLoading ? 'hourglass-outline' : statusIcon} size={22} color={statusColor} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Body numberOfLines={1} style={{ fontWeight: isPlaying ? '600' : '400', color: isPlaying ? c.accent : c.text }}>
-                  {ch.title}
-                </Body>
-                <Muted style={{ marginTop: 2 }}>{isLoading ? 'Generating audio…' : sub}</Muted>
-              </View>
-            </Row>
-          </Card>
-        );
-      })}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+        {doc.chapters.map((ch, idx) => {
+          const isPlaying = player.track?.chapterId === ch.id;
+          const isLoading = player.loadingChapterId === ch.id;
+          const p = ch.progress;
+          const done = p?.completed;
+          return (
+            <TouchableOpacity
+              key={ch.id}
+              onPress={() => (isPlaying ? player.toggle() : play(ch))}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                backgroundColor: isPlaying
+                  ? (c.glass ? 'rgba(124,58,237,0.4)' : c.accent)
+                  : done
+                  ? (c.glass ? 'rgba(52,211,153,0.12)' : c.successSoft)
+                  : (c.glass ? 'rgba(167,139,250,0.08)' : c.cardAlt),
+                borderWidth: 1,
+                borderColor: isPlaying
+                  ? (c.glass ? 'rgba(167,139,250,0.6)' : c.accent)
+                  : done
+                  ? (c.glass ? 'rgba(52,211,153,0.35)' : c.success)
+                  : (c.glass ? 'rgba(167,139,250,0.2)' : c.border),
+                shadowColor: isPlaying ? '#7C3AED' : 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: isPlaying ? 0.9 : 0,
+                shadowRadius: 10,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: isPlaying ? '700' : '500',
+                color: isPlaying ? '#fff' : done ? c.success : c.accent }}>
+                {isLoading ? '⏳' : isPlaying ? (player.status.playing ? '⏸ ' : '▶ ') : done ? '✓ ' : '▶ '}
+                {ch.title}
+              </Text>
+              {p && !done && p.duration_seconds > 0 && (
+                <Text style={{ fontSize: 10, color: isPlaying ? 'rgba(255,255,255,0.6)' : c.textMuted, marginTop: 3 }}>
+                  {Math.round((100 * p.position_seconds) / p.duration_seconds)}% done
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {activeChapter && (
         <View style={{ marginTop: 14 }}>

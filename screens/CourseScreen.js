@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { api, postJson } from '../api';
 import { useThemeColors } from '../theme';
-import { Body, Button, Card, EmptyState, ErrorText, Icon, Input, Loading, Muted, Row, Title } from '../ui';
+import { Body, Button, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Loading, Muted, NeonBar, Row, Title, TypeBadge } from '../ui';
+
+function guessType(filename) {
+  if (!filename) return 'text';
+  const ext = filename.split('.').pop().toLowerCase();
+  if (['pdf'].includes(ext)) return 'pdf';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext)) return 'image';
+  if (filename.startsWith('http') || ext === 'html') return 'url';
+  return 'text';
+}
 
 export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }) {
   const c = useThemeColors();
@@ -46,58 +55,115 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
 
   return (
     <View style={{ padding: 18 }}>
-      <TouchableOpacity onPress={onBack} hitSlop={8} style={{ marginBottom: 8 }}>
+      {/* Back */}
+      <TouchableOpacity onPress={onBack} hitSlop={8} style={{ marginBottom: 12 }}>
         <Row style={{ gap: 4 }}>
-          <Icon name="chevron-back" size={16} color={c.accent} />
-          <Muted style={{ color: c.accent }}>Home</Muted>
+          <Icon name="chevron-back" size={15} color={c.accent} />
+          <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600' }}>Home</Text>
         </Row>
       </TouchableOpacity>
-      <Title>{course.name}</Title>
 
-      <Button
-        label="Add material"
-        icon="add"
-        variant="secondary"
-        small
-        onPress={() => onAddMaterial(courseId)}
-        style={{ alignSelf: 'flex-start', marginTop: 12 }}
-      />
+      {/* Course header */}
+      <Title style={{ fontSize: 22 }}>{course.name}</Title>
+      <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 3 }}>
+        {course.documents.length} material{course.documents.length !== 1 ? 's' : ''}
+      </Text>
+
+      <NeonBar style={{ marginTop: 14, marginBottom: 14 }} />
+
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <Text style={{ fontSize: 10, color: c.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700' }}>
+          Materials
+        </Text>
+        <TouchableOpacity
+          onPress={() => onAddMaterial(courseId)}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 5,
+            backgroundColor: c.glass ? 'rgba(124,58,237,0.25)' : c.accentSoft,
+            borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+            borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.35)' : c.border,
+          }}
+        >
+          <Icon name="add" size={14} color={c.accent} />
+          <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>Add material</Text>
+        </TouchableOpacity>
+      </Row>
 
       <ErrorText>{error}</ErrorText>
 
-      <View style={{ marginTop: 14 }}>
-        {course.documents.map((d) => (
-          <Card key={d.id} onPress={() => onOpenDocument(d.id)} style={{ marginBottom: 8 }}>
-            <Row style={{ gap: 12 }}>
-              <Icon name="document-text-outline" size={20} color={c.accent} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Body numberOfLines={1} style={{ fontWeight: '600' }}>{d.filename}</Body>
-                <Muted style={{ marginTop: 2 }}>
-                  {d.chapter_count} chapter{d.chapter_count !== 1 ? 's' : ''} · {d.language.toUpperCase()}
-                </Muted>
-              </View>
-              <TouchableOpacity onPress={() => deleteDocument(d.id)} hitSlop={10}>
-                <Icon name="trash-outline" size={17} color={c.textMuted} />
-              </TouchableOpacity>
-              <Icon name="chevron-forward" size={16} color={c.textMuted} />
-            </Row>
-          </Card>
-        ))}
-        {course.documents.length === 0 && (
-          <EmptyState
-            icon="cloud-upload-outline"
-            title="No material yet"
-            body="Add a PDF, photo, or web link to start listening and studying."
-          />
-        )}
-      </View>
+      {course.documents.map((d) => {
+        const type = guessType(d.filename);
+        return (
+          <TouchableOpacity
+            key={d.id}
+            onPress={() => onOpenDocument(d.id)}
+            activeOpacity={0.75}
+            style={{
+              backgroundColor: c.glass ? 'rgba(255,255,255,0.04)' : c.card,
+              borderRadius: 16, marginBottom: 10,
+              borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+            }}
+          >
+            <View style={{ padding: 14 }}>
+              {/* Material header */}
+              <Row style={{ gap: 10, marginBottom: d.chapter_count > 0 ? 10 : 0 }}>
+                <TypeBadge type={type} />
+                <Text numberOfLines={1} style={{ flex: 1, color: c.text, fontSize: 13, fontWeight: '600' }}>
+                  {d.filename}
+                </Text>
+                <TouchableOpacity onPress={() => deleteDocument(d.id)} hitSlop={10}>
+                  <Icon name="trash-outline" size={15} color={c.textMuted} />
+                </TouchableOpacity>
+                <Icon name="chevron-forward" size={14} color={c.textMuted} />
+              </Row>
 
+              {/* Chapter chips */}
+              {d.chapter_count > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {Array.from({ length: Math.min(d.chapter_count, 6) }).map((_, i) => (
+                    <View key={i} style={{
+                      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+                      backgroundColor: c.glass ? 'rgba(167,139,250,0.1)' : c.cardAlt,
+                      borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.22)' : c.border,
+                    }}>
+                      <Text style={{ fontSize: 10, color: c.accent, fontWeight: '500' }}>
+                        §{i + 1}
+                      </Text>
+                    </View>
+                  ))}
+                  {d.chapter_count > 6 && (
+                    <View style={{
+                      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+                      backgroundColor: 'transparent',
+                    }}>
+                      <Text style={{ fontSize: 10, color: c.textMuted }}>+{d.chapter_count - 6} more</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+
+      {course.documents.length === 0 && (
+        <EmptyState
+          icon="cloud-upload-outline"
+          title="No material yet"
+          body="Add a PDF, photo, or web link to start listening and studying."
+        />
+      )}
+
+      {/* Ask across course */}
       {course.documents.length > 0 && (
-        <View style={{ marginTop: 20 }}>
-          <Muted style={{ fontSize: 13, marginBottom: 8 }}>Ask across the whole course</Muted>
+        <>
+          <NeonBar style={{ marginTop: 16, marginBottom: 14 }} />
+          <Text style={{ fontSize: 10, color: c.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 10 }}>
+            Ask across all materials
+          </Text>
           <Row style={{ gap: 8 }}>
             <Input
-              placeholder="Ask about any file in this course…"
+              placeholder="Ask anything about this course…"
               value={question}
               onChangeText={setQuestion}
               onSubmitEditing={ask}
@@ -112,7 +178,7 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
               <Body selectable style={{ marginTop: 6, color: c.textSecondary }}>{q.answer}</Body>
             </Card>
           ))}
-        </View>
+        </>
       )}
     </View>
   );
