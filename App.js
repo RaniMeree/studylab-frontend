@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, API_BASE } from './api';
@@ -34,6 +34,7 @@ const TABS = [
 function TabBar({ tab, onChange, dueCount }) {
   const c = useThemeColors();
   const t = useT();
+  const insets = useSafeAreaInsets();
   return (
     <View
       style={{
@@ -42,7 +43,7 @@ function TabBar({ tab, onChange, dueCount }) {
         borderTopWidth: 1,
         borderColor: c.border,
         paddingVertical: 6,
-        paddingBottom: 10,
+        paddingBottom: Math.max(insets.bottom, 10),
       }}
     >
       {TABS.map((item) => {
@@ -226,10 +227,11 @@ export default function App() {
   const entitled = !session || subscription?.entitled;
 
   return (
+    <SafeAreaProvider>
     <ThemeContext.Provider value={palette}>
       <I18nContext.Provider value={{ lang: uiLang, t: makeT(uiLang) }}>
       <PlayerProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: palette.page }}>
+        <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.page }}>
           <StatusBar style={palette.page === '#101012' ? 'light' : 'dark'} />
           {loading ? (
             <ActivityIndicator color={palette.accent} style={{ marginTop: 80 }} />
@@ -266,5 +268,6 @@ export default function App() {
       </PlayerProvider>
       </I18nContext.Provider>
     </ThemeContext.Provider>
+    </SafeAreaProvider>
   );
 }
