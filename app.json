@@ -18,7 +18,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Used to photograph pages and convert them to audio.",
         "NSMicrophoneUsageDescription": "Not used by this app.",
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -52,7 +54,8 @@
         {
           "cameraPermission": "Used to photograph pages and convert them to audio."
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {
