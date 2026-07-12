@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -17,7 +18,7 @@ import { AuthScreen, OnboardingScreen } from './screens/AuthScreen';
 import { CourseScreen } from './screens/CourseScreen';
 import { DocumentScreen } from './screens/DocumentScreen';
 import { HomeScreen } from './screens/HomeScreen';
-import { PaywallScreen, ProfileScreen } from './screens/ProfileScreen';
+import { FullPaywallScreen, PaywallScreen, ProfileScreen } from './screens/ProfileScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { supabase } from './supabaseClient';
 import { I18nContext, makeT, useT } from './i18n';
@@ -89,6 +90,7 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
   const [addCourseId, setAddCourseId] = useState(null);
   const [voicesByLanguage, setVoicesByLanguage] = useState({});
   const [dueCount, setDueCount] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/voices`).then((r) => r.json()).then(setVoicesByLanguage).catch(() => {});
@@ -110,7 +112,7 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
   return (
     <View style={{ flex: 1 }}>
       {subscription?.status === 'trial' && (
-        <TouchableOpacity onPress={() => setTab('profile')}>
+        <TouchableOpacity onPress={() => setShowPaywall(true)}>
           <Text
             style={{
               backgroundColor: c.accentSoft, color: c.accent, fontSize: 12, fontWeight: '600',
@@ -164,6 +166,7 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
             settings={settings}
             onChangeTheme={onChangeTheme}
             onChangeLang={onChangeLang}
+            onShowPaywall={() => setShowPaywall(true)}
           />
         )}
         <View style={{ height: 24 }} />
@@ -171,6 +174,13 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
       <FullPlayer />
       <MiniPlayer />
       <TabBar tab={tab} onChange={setTab} dueCount={dueCount} />
+      <Modal visible={showPaywall} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setShowPaywall(false)}>
+        <FullPaywallScreen
+          subscription={subscription}
+          onRefreshSubscription={refreshSubscription}
+          onClose={() => setShowPaywall(false)}
+        />
+      </Modal>
     </View>
   );
 }

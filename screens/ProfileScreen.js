@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../api';
 import { UI_LANGUAGES, useT } from '../i18n';
 import { getOfferings, purchasePackage, restorePurchases } from '../purchases';
@@ -299,7 +299,7 @@ export function PaywallScreen({ subscription, onRefreshSubscription }) {
   );
 }
 
-export function ProfileScreen({ session, subscription, onRefreshSubscription, settings, onChangeTheme, onChangeLang }) {
+export function ProfileScreen({ session, subscription, onRefreshSubscription, settings, onChangeTheme, onChangeLang, onShowPaywall }) {
   const c = useThemeColors();
   const t = useT();
   const [showPlans, setShowPlans] = useState(false);
@@ -386,7 +386,7 @@ export function ProfileScreen({ session, subscription, onRefreshSubscription, se
 
       {/* Subscribe button */}
       <TouchableOpacity
-        onPress={() => setShowPlans((v) => !v)} disabled={busy}
+        onPress={onShowPaywall ?? (() => setShowPlans((v) => !v))} disabled={busy}
         style={{
           paddingVertical: 14, borderRadius: 16, alignItems: 'center',
           backgroundColor: 'rgba(124,58,237,0.3)',
@@ -478,6 +478,234 @@ export function ProfileScreen({ session, subscription, onRefreshSubscription, se
         </View>
       )}
       <View style={{ height: 30 }} />
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// Full-screen paywall (shown in Modal from App.js)
+// ─────────────────────────────────────────────────────────
+export function FullPaywallScreen({ subscription, onRefreshSubscription, onClose }) {
+  const [offerings, setOfferings] = useState(null);
+  const [selectedPkg, setSelectedPkg] = useState(null);
+  const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const redirectTimer = useRef(null);
+
+  useEffect(() => {
+    getOfferings()
+      .then((pkgs) => {
+        setOfferings(pkgs);
+        const yearly = pkgs.find((p) => p.packageType === 'ANNUAL' || p.identifier === '$rc_annual');
+        const monthly = pkgs.find((p) => p.packageType === 'MONTHLY' || p.identifier === '$rc_monthly');
+        setSelectedPkg(yearly ?? monthly ?? pkgs[0] ?? null);
+      })
+      .catch((e) => { setError(e.message); setOfferings([]); });
+    return () => { if (redirectTimer.current) clearTimeout(redirectTimer.current); };
+  }, []);
+
+  const getPrice = (pkg) =>
+    pkg?.webBillingProduct?.currentPrice?.formattedPrice ?? pkg?.storeProduct?.priceString ?? '';
+
+  const isYearly = (pkg) =>
+    pkg?.packageType === 'ANNUAL' || pkg?.identifier === '$rc_annual';
+
+  const buy = async () => {
+    if (!selectedPkg) return;
+    setPurchasing(true); setError('');
+    try {
+      await purchasePackage(selectedPkg);
+      await onRefreshSubscription();
+      setSuccess(true);
+      redirectTimer.current = setTimeout(() => { onClose?.(); }, 3000);
+    } catch (e) {
+      if (!e.message?.includes('cancelled') && !e.message?.includes('cancel')) setError(e.message);
+    } finally { setPurchasing(false); }
+  };
+
+  const restore = async () => {
+    setRestoring(true); setError('');
+    try { await restorePurchases(); await onRefreshSubscription(); setSuccess(true); redirectTimer.current = setTimeout(() => onClose?.(), 3000); }
+    catch (e) { setError(e.message); }
+    finally { setRestoring(false); }
+  };
+
+  if (success) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#080613', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <View style={{
+          width: 100, height: 100, borderRadius: 50,
+          backgroundColor: 'rgba(52,211,153,0.15)', alignItems: 'center', justifyContent: 'center',
+          borderWidth: 1, borderColor: 'rgba(52,211,153,0.45)',
+          shadowColor: '#34D399', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 24,
+          marginBottom: 28,
+        }}>
+          <Text style={{ fontSize: 48 }}>✓</Text>
+        </View>
+        <Text style={{ fontSize: 26, fontWeight: '800', color: '#fff', textAlign: 'center', marginBottom: 12 }}>
+          You're all set!
+        </Text>
+        <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 23 }}>
+          Welcome to StudyLab Premium.{'\n'}Redirecting you now…
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#080613' }}>
+      {/* Close button */}
+      <TouchableOpacity
+        onPress={onClose}
+        style={{
+          position: 'absolute', top: Platform.OS === 'ios' ? 52 : 16, right: 18, zIndex: 10,
+          width: 34, height: 34, borderRadius: 17,
+          backgroundColor: 'rgba(255,255,255,0.08)',
+          alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 18, lineHeight: 20 }}>✕</Text>
+      </TouchableOpacity>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
+        {/* Hero */}
+        <View style={{ alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 100 : 60, paddingHorizontal: 24 }}>
+          <View style={{
+            width: 88, height: 88, borderRadius: 26,
+            backgroundColor: 'rgba(124,58,237,0.15)', alignItems: 'center', justifyContent: 'center',
+            borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)',
+            shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 24,
+            marginBottom: 22,
+          }}>
+            <Text style={{ fontSize: 40 }}>🎓</Text>
+          </View>
+          <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 2.5, textTransform: 'uppercase', color: '#A78BFA', marginBottom: 10 }}>
+            StudyLab Premium
+          </Text>
+          <Text style={{ fontSize: 30, fontWeight: '800', color: '#fff', textAlign: 'center', lineHeight: 36, marginBottom: 12 }}>
+            Learn Smarter,{'\n'}Not Harder
+          </Text>
+          <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', textAlign: 'center', lineHeight: 23, marginBottom: 36, maxWidth: 300 }}>
+            Turn any document into an immersive study session.
+          </Text>
+        </View>
+
+        {/* Features */}
+        <View style={{ paddingHorizontal: 20, gap: 6, marginBottom: 28 }}>
+          {FEATURES.map((f) => (
+            <View key={f.title} style={{
+              flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 14,
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              borderWidth: 1, borderColor: 'rgba(167,139,250,0.15)',
+              borderLeftWidth: 3, borderLeftColor: '#7C3AED',
+            }}>
+              <Text style={{ fontSize: 22, width: 30, textAlign: 'center' }}>{f.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>{f.title}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.42)', fontSize: 12, marginTop: 2, lineHeight: 17 }}>{f.desc}</Text>
+              </View>
+              <Text style={{ color: '#34D399', fontSize: 18 }}>✓</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ height: 1, backgroundColor: 'rgba(167,139,250,0.18)', marginHorizontal: 20, marginBottom: 24 }} />
+
+        {/* Plans */}
+        <View style={{ paddingHorizontal: 20 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>
+            Choose your plan
+          </Text>
+          {offerings === null && (
+            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Loading plans…</Text>
+            </View>
+          )}
+          {offerings?.length === 0 && !error && (
+            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
+              No plans available right now. Try again later.
+            </Text>
+          )}
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 18 }}>
+            {offerings?.map((pkg) => {
+              const selected = selectedPkg?.identifier === pkg.identifier;
+              const yearly = isYearly(pkg);
+              return (
+                <TouchableOpacity
+                  key={pkg.identifier}
+                  onPress={() => setSelectedPkg(pkg)}
+                  activeOpacity={0.8}
+                  style={{
+                    flex: 1, padding: 20, borderRadius: 20, position: 'relative',
+                    backgroundColor: yearly ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.04)',
+                    borderWidth: selected ? 2 : 1,
+                    borderColor: selected ? (yearly ? '#7C3AED' : '#A78BFA') : 'rgba(167,139,250,0.18)',
+                    shadowColor: yearly && selected ? '#7C3AED' : 'transparent',
+                    shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 18,
+                  }}
+                >
+                  {yearly && (
+                    <View style={{
+                      position: 'absolute', top: -12, alignSelf: 'center',
+                      backgroundColor: '#7C3AED', borderRadius: 20,
+                      paddingHorizontal: 12, paddingVertical: 4,
+                      shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 8,
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' }}>Best Value</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', color: yearly ? '#A78BFA' : 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                    {yearly ? 'Yearly' : 'Monthly'}
+                  </Text>
+                  <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff', lineHeight: 32 }}>{getPrice(pkg)}</Text>
+                  <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>{yearly ? 'per year' : 'per month'}</Text>
+                  {yearly && <Text style={{ fontSize: 11, fontWeight: '700', color: '#34D399', marginTop: 8 }}>Save 17%</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {!!error && <Text style={{ color: '#F87171', fontSize: 13, marginBottom: 14, textAlign: 'center' }}>{error}</Text>}
+
+          {/* CTA */}
+          <TouchableOpacity
+            onPress={buy}
+            disabled={purchasing || !selectedPkg}
+            activeOpacity={0.85}
+            style={{
+              paddingVertical: 18, borderRadius: 18, alignItems: 'center',
+              backgroundColor: purchasing ? 'rgba(124,58,237,0.5)' : '#7C3AED',
+              shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.75, shadowRadius: 24,
+              marginBottom: 14,
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 }}>
+              {purchasing
+                ? 'Processing…'
+                : selectedPkg
+                  ? `Subscribe — ${getPrice(selectedPkg)}${isYearly(selectedPkg) ? '/year' : '/month'}`
+                  : 'Select a plan'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginBottom: 28 }}>
+            Cancel anytime · No hidden fees
+          </Text>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 28 }}>
+            <TouchableOpacity onPress={restore} disabled={restoring}>
+              <Text style={{ color: '#A78BFA', fontSize: 13, opacity: restoring ? 0.5 : 0.85 }}>
+                {restoring ? 'Restoring…' : 'Restore purchases'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => supabase.auth.signOut()}>
+              <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Sign out</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
