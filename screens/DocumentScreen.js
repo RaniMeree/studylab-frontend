@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import Slider from '@react-native-community/slider';
 import { AudioModule, RecordingPresets, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { api, postJson } from '../api';
 import { UI_LANGUAGES, useT } from '../i18n';
@@ -25,6 +26,7 @@ function SummaryOptionsSheet({ visible, mode, docLanguage, uiLang, sections, onC
   const [summaryLang, setSummaryLang] = useState(null); // null = same as doc
   const [simplicity, setSimplicity] = useState('teen');
   const [section, setSection] = useState(null); // null = whole document
+  const [langOpen, setLangOpen] = useState(false);
 
   const isSimple = mode === 'simple';
   const isAi = mode === 'ai' || mode === 'lecture' || isSimple;
@@ -78,25 +80,24 @@ function SummaryOptionsSheet({ visible, mode, docLanguage, uiLang, sections, onC
 
         {/* Length */}
         <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
-          Length — {maxWords} words
+          Length — <Text style={{ color: '#A78BFA' }}>{maxWords} words</Text>
+          {maxWords <= 100 ? ' · brief' : maxWords <= 250 ? ' · standard' : maxWords <= 400 ? ' · detailed' : ' · in depth'}
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {WORD_STEPS.map((w) => (
-              <TouchableOpacity
-                key={w}
-                onPress={() => setMaxWords(w)}
-                style={{
-                  paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
-                  backgroundColor: maxWords === w ? '#7C3AED' : 'rgba(255,255,255,0.06)',
-                  borderWidth: 1, borderColor: maxWords === w ? '#7C3AED' : 'rgba(167,139,250,0.18)',
-                }}
-              >
-                <Text style={{ color: maxWords === w ? '#fff' : 'rgba(255,255,255,0.5)', fontWeight: '700', fontSize: 13 }}>{w}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        <Slider
+          minimumValue={WORD_STEPS[0]}
+          maximumValue={WORD_STEPS[WORD_STEPS.length - 1]}
+          step={50}
+          value={maxWords}
+          onValueChange={setMaxWords}
+          minimumTrackTintColor="#7C3AED"
+          maximumTrackTintColor="rgba(255,255,255,0.12)"
+          thumbTintColor="#A78BFA"
+          style={{ marginBottom: 4, height: 36 }}
+        />
+        <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{WORD_STEPS[0]}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{WORD_STEPS[WORD_STEPS.length - 1]}</Text>
+        </Row>
 
         {/* Simplicity (simple mode only) */}
         {isSimple && (
@@ -129,27 +130,54 @@ function SummaryOptionsSheet({ visible, mode, docLanguage, uiLang, sections, onC
             <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
               Output language
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {[{ code: null, label: 'Auto', flag: '🌐' }, ...UI_LANGUAGES].map((l) => {
-                  const active = summaryLang === l.code;
-                  return (
-                    <TouchableOpacity
-                      key={l.code ?? 'auto'}
-                      onPress={() => setSummaryLang(l.code)}
-                      style={{
-                        alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
-                        backgroundColor: active ? '#7C3AED' : 'rgba(255,255,255,0.06)',
-                        borderWidth: 1, borderColor: active ? '#7C3AED' : 'rgba(167,139,250,0.18)',
-                      }}
-                    >
-                      <Text style={{ fontSize: 18 }}>{l.flag}</Text>
-                      <Text style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: 10, marginTop: 3, fontWeight: '600' }}>{l.label.slice(0, 6)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
+            {(() => {
+              const langs = [{ code: null, label: 'Auto (same as document)', flag: '🌐' }, ...UI_LANGUAGES];
+              const current = langs.find((l) => l.code === summaryLang) ?? langs[0];
+              return (
+                <View style={{ marginBottom: 24 }}>
+                  <TouchableOpacity
+                    onPress={() => setLangOpen((v) => !v)}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+                      backgroundColor: 'rgba(255,255,255,0.06)',
+                      borderWidth: 1, borderColor: langOpen ? '#7C3AED' : 'rgba(167,139,250,0.25)',
+                    }}
+                  >
+                    <Text style={{ fontSize: 18 }}>{current.flag}</Text>
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14, flex: 1 }}>{current.label}</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>{langOpen ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {langOpen && (
+                    <ScrollView style={{
+                      maxHeight: 190, marginTop: 6, borderRadius: 14,
+                      backgroundColor: '#171029',
+                      borderWidth: 1, borderColor: 'rgba(167,139,250,0.25)',
+                    }}>
+                      {langs.map((l) => {
+                        const active = summaryLang === l.code;
+                        return (
+                          <TouchableOpacity
+                            key={l.code ?? 'auto'}
+                            onPress={() => { setSummaryLang(l.code); setLangOpen(false); }}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', gap: 10,
+                              paddingHorizontal: 14, paddingVertical: 11,
+                              backgroundColor: active ? 'rgba(124,58,237,0.3)' : 'transparent',
+                            }}
+                          >
+                            <Text style={{ fontSize: 16 }}>{l.flag}</Text>
+                            <Text style={{ color: active ? '#fff' : 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: active ? '700' : '500' }}>
+                              {l.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+                </View>
+              );
+            })()}
           </>
         )}
 
