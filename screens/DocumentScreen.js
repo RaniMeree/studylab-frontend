@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Slider from '@react-native-community/slider';
 import { AudioModule, RecordingPresets, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
@@ -368,6 +368,26 @@ function ListenSection({ doc, voiceOptions, voiceId, setVoiceId, setError, refre
     }
   };
 
+  // Long-press a chapter chip to delete its generated audio (regenerable).
+  const deleteChapterAudio = (ch) => {
+    const doDelete = async () => {
+      try {
+        await api(`/chapters/${ch.id}/audio`, { method: 'DELETE' });
+      } catch (e) {
+        setError(e.message);
+      }
+    };
+    const msg = `Delete the generated audio for "${ch.title}"? You can regenerate it anytime.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(msg)) doDelete();
+    } else {
+      Alert.alert('Delete audio?', msg, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
+
   return (
     <View>
       {voiceOptions.length > 1 && (
@@ -392,6 +412,7 @@ function ListenSection({ doc, voiceOptions, voiceId, setVoiceId, setError, refre
             <TouchableOpacity
               key={ch.id}
               onPress={() => (isPlaying ? player.toggle() : play(ch))}
+              onLongPress={() => deleteChapterAudio(ch)}
               style={{
                 paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
                 backgroundColor: isPlaying
@@ -568,6 +589,52 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
     }
   };
 
+  const confirmDelete = (message, onConfirm) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(message)) onConfirm();
+    } else {
+      Alert.alert('Delete?', message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: onConfirm },
+      ]);
+    }
+  };
+
+  const deleteSummary = (sm) =>
+    confirmDelete('Delete this summary and its audio?', async () => {
+      try {
+        await api(`/summaries/${sm.id}`, { method: 'DELETE' });
+        toast('Summary deleted', 'info');
+        refresh();
+      } catch (e) {
+        setError(e.message);
+      }
+    });
+
+  const deleteDeck = () =>
+    confirmDelete(`Delete all ${doc.flashcards.length} flashcards and their review history?`, async () => {
+      try {
+        await api(`/documents/${docId}/flashcards`, { method: 'DELETE' });
+        toast('Deck deleted', 'info');
+        refresh();
+      } catch (e) {
+        setError(e.message);
+      }
+    });
+
+  const deleteQuiz = () =>
+    confirmDelete('Delete this exam and its results?', async () => {
+      try {
+        await api(`/documents/${docId}/quiz`, { method: 'DELETE' });
+        toast('Exam deleted', 'info');
+        setQuiz(null);
+        setQuizAnswers({});
+        setQuizResult(null);
+      } catch (e) {
+        setError(e.message);
+      }
+    });
+
   const startReview = async () => {
     try {
       const d = await api(`/documents/${docId}/flashcards/due`);
@@ -707,7 +774,7 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
       )}
 
       {doc.summaries.map((sm) => (
-        <Card key={sm.id} style={{ marginTop: 10 }}>
+        <Card key={sm.id} style={{ marginTop: 10, borderLeftWidth: 3, borderLeftColor: doc.course_color ?? c.accent }}>
           <Muted>{SUMMARY_LABELS[sm.mode] ?? 'Summary'}</Muted>
           <Body selectable style={{ marginTop: 6, color: c.textSecondary }}>{sm.text}</Body>
           <Row style={{ gap: 16, marginTop: 10 }}>
@@ -719,6 +786,9 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
             </TouchableOpacity>
             <TouchableOpacity onPress={() => copyText(sm.id, sm.text)}>
               <Text style={{ color: c.accent, fontSize: 13 }}>{copiedKey === sm.id ? 'Copied' : 'Copy'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => deleteSummary(sm)} style={{ marginLeft: 'auto' }}>
+              <Text style={{ color: c.textMuted, fontSize: 13 }}>🗑 Delete</Text>
             </TouchableOpacity>
           </Row>
         </Card>
@@ -734,6 +804,9 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
           onPress={generateFlashcards}
           disabled={generatingCards}
         />
+        {doc.flashcards.length > 0 && (
+          <Pill label="🗑 Delete deck" onPress={deleteDeck} />
+        )}
       </Row>
       {generatingCards && <Loading label="Creating flashcards…" />}
       {doc.flashcards.map((fc) => (
@@ -751,6 +824,11 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
       {quizBusy && <Loading label="Working…" />}
       {quiz === null && !quizBusy && (
         <Button label={t('generateExam')} icon="school-outline" variant="secondary" onPress={generateQuiz} />
+      )}
+      {quiz?.questions?.length > 0 && (
+        <Row style={{ gap: 6, marginBottom: 8 }}>
+          <Pill label="🗑 Delete exam" onPress={deleteQuiz} />
+        </Row>
       )}
       {quiz?.results?.length > 0 && !quizResult && (
         <Muted style={{ marginBottom: 8 }}>

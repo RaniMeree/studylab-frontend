@@ -157,9 +157,10 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
             onPress={() => onOpenDocument(d.id)}
             activeOpacity={0.75}
             style={{
-              backgroundColor: c.glass ? 'rgba(255,255,255,0.04)' : c.card,
+              backgroundColor: `${color}0d`,
               borderRadius: 16, marginBottom: 10,
               borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+              borderLeftWidth: 3, borderLeftColor: color,
             }}
           >
             <View style={{ padding: 14 }}>
