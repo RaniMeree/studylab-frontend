@@ -3,6 +3,7 @@ import { Platform, Text, TouchableOpacity, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../supabaseClient';
+import { api } from '../api';
 import { useThemeColors } from '../theme';
 import { Button, ErrorText, Input, Muted, NeonBar, Row } from '../ui';
 
@@ -69,6 +70,145 @@ export function OnboardingScreen({ onDone }) {
           <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Skip</Text>
         </TouchableOpacity>
       )}
+    </View>
+  );
+}
+
+const LEVELS = [
+  { key: 'high_school', emoji: '🎒', label: 'High school' },
+  { key: 'bachelor', emoji: '🎓', label: 'Bachelor' },
+  { key: 'master', emoji: '📚', label: 'Master' },
+  { key: 'phd', emoji: '🔬', label: 'PhD / Research' },
+  { key: 'other', emoji: '✏️', label: 'Other' },
+];
+
+const FIELDS = [
+  'Medicine & Health', 'Engineering & Tech', 'Business & Economics', 'Law',
+  'Natural Sciences', 'Social Sciences', 'Arts & Humanities', 'Languages', 'Other',
+];
+
+const SOURCES = [
+  { key: 'friend', label: '👋 A friend' },
+  { key: 'social', label: '📱 Social media' },
+  { key: 'search', label: '🔍 Search' },
+  { key: 'store', label: '🏪 App store' },
+  { key: 'other', label: '💬 Other' },
+];
+
+function Pill({ active, label, onPress, c }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, marginBottom: 8,
+        backgroundColor: active ? 'rgba(124,58,237,0.35)' : c.card,
+        borderWidth: 1, borderColor: active ? 'rgba(167,139,250,0.7)' : c.border,
+      }}
+    >
+      <Text style={{ color: active ? '#fff' : c.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/** Post-signup profile questions (study level, field, referral). Skippable. */
+export function ProfileSetupScreen({ onDone }) {
+  const c = useThemeColors();
+  const [step, setStep] = useState(0);
+  const [level, setLevel] = useState(null);
+  const [field, setField] = useState(null);
+  const [institution, setInstitution] = useState('');
+  const [source, setSource] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const finish = async (skipped = false) => {
+    setBusy(true);
+    try {
+      await api('/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          study_level: skipped ? null : level,
+          field_of_study: skipped ? null : field,
+          institution: skipped ? null : institution.trim() || null,
+          referral_source: skipped ? null : source,
+          onboarded: true,
+        }),
+      });
+    } catch {
+      // Never trap the user here — continue regardless.
+    }
+    onDone();
+  };
+
+  const steps = [
+    {
+      title: 'Where are you in your studies?',
+      sub: 'We use this to pitch explanations at the right level.',
+      valid: level !== null,
+      body: LEVELS.map((l) => (
+        <Pill key={l.key} c={c} active={level === l.key} label={`${l.emoji}  ${l.label}`} onPress={() => setLevel(l.key)} />
+      )),
+    },
+    {
+      title: 'What do you study?',
+      sub: 'Helps us tailor examples and tools for you.',
+      valid: field !== null,
+      body: (
+        <>
+          <Row style={{ flexWrap: 'wrap', gap: 8 }}>
+            {FIELDS.map((f) => (
+              <Pill key={f} c={c} active={field === f} label={f} onPress={() => setField(f)} />
+            ))}
+          </Row>
+          <Input placeholder="School / university (optional)" value={institution} onChangeText={setInstitution} />
+        </>
+      ),
+    },
+    {
+      title: 'How did you find StudyLab?',
+      sub: 'Last one — this helps us reach more students.',
+      valid: source !== null,
+      body: SOURCES.map((s) => (
+        <Pill key={s.key} c={c} active={source === s.key} label={s.label} onPress={() => setSource(s.key)} />
+      )),
+    },
+  ];
+
+  const cur = steps[step];
+  const last = step === steps.length - 1;
+
+  return (
+    <View style={{ paddingVertical: 48, paddingHorizontal: 24 }}>
+      {/* Progress dots */}
+      <Row style={{ gap: 6, justifyContent: 'center', marginBottom: 28 }}>
+        {steps.map((_, i) => (
+          <View key={i} style={{
+            width: i === step ? 22 : 7, height: 7, borderRadius: 4,
+            backgroundColor: i === step ? c.accent : 'rgba(167,139,250,0.25)',
+          }} />
+        ))}
+      </Row>
+
+      <Text style={{ color: c.text, fontSize: 22, fontWeight: '800', textAlign: 'center' }}>{cur.title}</Text>
+      <Text style={{ color: c.subtext, fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 24 }}>{cur.sub}</Text>
+
+      {cur.body}
+
+      <Row style={{ gap: 10, marginTop: 20 }}>
+        {step > 0 && (
+          <Button label="Back" variant="secondary" onPress={() => setStep(step - 1)} disabled={busy} style={{ flex: 1 }} />
+        )}
+        <Button
+          label={busy ? 'Saving…' : last ? 'Start studying 🚀' : 'Continue'}
+          onPress={() => (last ? finish() : setStep(step + 1))}
+          disabled={busy || !cur.valid}
+          style={{ flex: 2 }}
+        />
+      </Row>
+
+      <TouchableOpacity style={{ marginTop: 18, alignSelf: 'center' }} onPress={() => finish(true)} disabled={busy}>
+        <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Skip for now</Text>
+      </TouchableOpacity>
     </View>
   );
 }

@@ -3,6 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { api, postJson } from '../api';
 import { useThemeColors } from '../theme';
 import { Body, Button, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Loading, Muted, NeonBar, Row, Title, TypeBadge } from '../ui';
+import { COURSE_COLORS } from './HomeScreen';
 
 function guessType(filename) {
   if (!filename) return 'text';
@@ -20,6 +21,7 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
   const [question, setQuestion] = useState('');
   const [asking, setAsking] = useState(false);
   const [questions, setQuestions] = useState([]);
+  const [pickingColor, setPickingColor] = useState(false);
 
   const refresh = () => {
     api(`/courses/${courseId}`).then(setCourse).catch((e) => setError(e.message));
@@ -53,9 +55,21 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
 
   if (!course) return <Loading label="Loading course…" />;
 
+  const color = course.color || COURSE_COLORS[0];
+
+  const setColor = async (col) => {
+    setCourse({ ...course, color: col });
+    setPickingColor(false);
+    try { await api(`/courses/${courseId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ color: col }),
+    }); } catch (e) { setError(e.message); }
+  };
+
   return (
     <View style={{ padding: 18 }}>
-      {/* Back */}
+      {/* Breadcrumb back */}
       <TouchableOpacity onPress={onBack} hitSlop={8} style={{ marginBottom: 12 }}>
         <Row style={{ gap: 4 }}>
           <Icon name="chevron-back" size={15} color={c.accent} />
@@ -63,11 +77,48 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
         </Row>
       </TouchableOpacity>
 
-      {/* Course header */}
-      <Title style={{ fontSize: 22 }}>{course.name}</Title>
-      <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 3 }}>
-        {course.documents.length} material{course.documents.length !== 1 ? 's' : ''}
-      </Text>
+      {/* Course header — tinted with the course color */}
+      <View style={{
+        backgroundColor: `${color}26`,
+        borderRadius: 18, padding: 16,
+        borderWidth: 1, borderColor: `${color}55`,
+        borderLeftWidth: 5, borderLeftColor: color,
+      }}>
+        <Row style={{ gap: 12, alignItems: 'center' }}>
+          <GlowBox emoji="📁" color={color} size={44} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Title numberOfLines={1} style={{ fontSize: 21 }}>{course.name}</Title>
+            <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>
+              {course.documents.length} material{course.documents.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          {/* Color swatch — tap to change course color */}
+          <TouchableOpacity
+            onPress={() => setPickingColor((v) => !v)}
+            hitSlop={8}
+            style={{
+              width: 26, height: 26, borderRadius: 13, backgroundColor: color,
+              borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)',
+              shadowColor: color, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 8,
+            }}
+          />
+        </Row>
+        {pickingColor && (
+          <Row style={{ gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+            {COURSE_COLORS.map((col) => (
+              <TouchableOpacity
+                key={col}
+                onPress={() => setColor(col)}
+                hitSlop={6}
+                style={{
+                  width: 28, height: 28, borderRadius: 14, backgroundColor: col,
+                  borderWidth: 2, borderColor: col === color ? '#fff' : 'transparent',
+                }}
+              />
+            ))}
+          </Row>
+        )}
+      </View>
 
       <NeonBar style={{ marginTop: 14, marginBottom: 14 }} />
 

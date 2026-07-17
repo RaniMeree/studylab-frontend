@@ -421,11 +421,26 @@ export function ProfileScreen({ session, subscription, onRefreshSubscription, se
           <Pill label="Neon" active={settings?.themePref === 'dark'} onPress={() => onChangeTheme('dark')} />
         </Row>
         <Text style={{ color: c.textMuted, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700', marginTop: 14, marginBottom: 10 }}>{t('uiLanguage')}</Text>
-        <Row style={{ gap: 6, flexWrap: 'wrap' }}>
-          {UI_LANGUAGES.map((l) => (
-            <Pill key={l.code} label={l.label} active={settings?.uiLang === l.code} onPress={() => onChangeLang(l.code)} />
-          ))}
-        </Row>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {UI_LANGUAGES.map((l) => {
+            const active = settings?.uiLang === l.code;
+            return (
+              <TouchableOpacity
+                key={l.code}
+                onPress={() => onChangeLang(l.code)}
+                style={{
+                  alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14,
+                  backgroundColor: active ? (c.glass ? 'rgba(124,58,237,0.3)' : c.accentSoft) : (c.glass ? 'rgba(255,255,255,0.04)' : c.card),
+                  borderWidth: 1, borderColor: active ? (c.glass ? '#7C3AED' : c.accent) : (c.glass ? 'rgba(167,139,250,0.18)' : c.border),
+                  minWidth: 62,
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>{l.flag}</Text>
+                <Text style={{ color: active ? c.accent : c.textMuted, fontSize: 10, fontWeight: '600', marginTop: 3, textAlign: 'center' }}>{l.label.slice(0, 7)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </GlassRow>
 
       {/* Actions */}

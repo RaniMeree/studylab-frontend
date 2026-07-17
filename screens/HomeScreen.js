@@ -6,13 +6,9 @@ import { usePlayer } from '../player';
 import { useThemeColors } from '../theme';
 import { Body, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Muted, NeonBar, ProgressBar, Row, Title } from '../ui';
 
-const COURSE_GLOWS = [
-  { emoji: '🧪', color: '#7C3AED' },
-  { emoji: '📐', color: '#0EA5E9' },
-  { emoji: '🧬', color: '#EC4899' },
-  { emoji: '📚', color: '#10B981' },
-  { emoji: '🌍', color: '#F59E0B' },
-  { emoji: '🎵', color: '#EF4444' },
+export const COURSE_COLORS = [
+  '#7C3AED', '#0EA5E9', '#EC4899', '#10B981',
+  '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6',
 ];
 
 export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
@@ -23,6 +19,7 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
   const [stats, setStats] = useState(null);
   const [resume, setResume] = useState(null);
   const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState(COURSE_COLORS[0]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,7 +35,7 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
     setCreating(true);
     setError('');
     try {
-      const course = await postJson('/courses', { name: newName });
+      const course = await postJson('/courses', { name: newName, color: newColor });
       setNewName('');
       refresh();
       onOpenCourse(course.id);
@@ -179,11 +176,30 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
         </TouchableOpacity>
       </Row>
 
+      {/* Color picker for the new course — only shown while typing a name */}
+      {newName.trim().length > 0 && (
+        <Row style={{ gap: 10, marginBottom: 12, alignItems: 'center' }}>
+          {COURSE_COLORS.map((col) => (
+            <TouchableOpacity
+              key={col}
+              onPress={() => setNewColor(col)}
+              hitSlop={6}
+              style={{
+                width: 26, height: 26, borderRadius: 13, backgroundColor: col,
+                borderWidth: 2, borderColor: newColor === col ? '#fff' : 'transparent',
+                shadowColor: col, shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: newColor === col ? 0.9 : 0, shadowRadius: 8,
+              }}
+            />
+          ))}
+        </Row>
+      )}
+
       <ErrorText>{error}</ErrorText>
 
       {courses === null && <Muted>Loading…</Muted>}
-      {courses?.map((course, i) => {
-        const glow = COURSE_GLOWS[i % COURSE_GLOWS.length];
+      {courses?.map((course) => {
+        const color = course.color || COURSE_COLORS[0];
         return (
           <TouchableOpacity
             key={course.id}
@@ -193,12 +209,13 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
               backgroundColor: c.glass ? 'rgba(255,255,255,0.03)' : c.card,
               borderRadius: 16, marginBottom: 10,
               borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+              borderLeftWidth: 4, borderLeftColor: color,
               overflow: 'hidden',
             }}
           >
             <View style={{ padding: 14 }}>
               <Row style={{ gap: 12 }}>
-                <GlowBox emoji={glow.emoji} color={glow.color} size={40} />
+                <GlowBox emoji="📁" color={color} size={40} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>{course.name}</Text>
                   <Text style={{ color: c.textMuted, fontSize: 11, marginTop: 2 }}>

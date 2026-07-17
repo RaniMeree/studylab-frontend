@@ -14,7 +14,7 @@ import { api, API_BASE, pingBackend } from './api';
 import { FullPlayer, MiniPlayer, PlayerProvider } from './player';
 import { configurePurchases } from './purchases';
 import { AddScreen } from './screens/AddScreen';
-import { AuthScreen, OnboardingScreen } from './screens/AuthScreen';
+import { AuthScreen, OnboardingScreen, ProfileSetupScreen } from './screens/AuthScreen';
 import { CourseScreen } from './screens/CourseScreen';
 import { DocumentScreen } from './screens/DocumentScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -100,6 +100,12 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
     api('/review/due').then((d) => setDueCount(d.due.length)).catch(() => {});
   }, [tab]);
 
+  // Re-tapping the Home tab while already on it pops back to the course list
+  const changeTab = (key) => {
+    if (key === 'home' && tab === 'home') setHomeNav({ screen: 'home' });
+    setTab(key);
+  };
+
   const openCourse = (courseId) => {
     setTab('home');
     setHomeNav({ screen: 'course', courseId });
@@ -173,7 +179,7 @@ function AppShell({ session, subscription, refreshSubscription, settings, onChan
       </ScrollView>
       <FullPlayer />
       <MiniPlayer />
-      <TabBar tab={tab} onChange={setTab} dueCount={dueCount} />
+      <TabBar tab={tab} onChange={changeTab} dueCount={dueCount} />
       <Modal visible={showPaywall} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setShowPaywall(false)}>
         <FullPaywallScreen
           subscription={subscription}
@@ -192,6 +198,7 @@ export default function App() {
   const [session, setSession] = useState(undefined);
   const [subscription, setSubscription] = useState(undefined);
   const [onboarded, setOnboarded] = useState(undefined);
+  const [profile, setProfile] = useState(undefined);
   const lastUserIdRef = useRef(null);
 
   const changeThemePref = (v) => {
@@ -233,13 +240,17 @@ export default function App() {
   useEffect(() => {
     if (!session) {
       setSubscription(undefined);
+      setProfile(undefined);
       return;
     }
     configurePurchases(session.user.id).catch(() => {});
     refreshSubscription();
+    // Profile questions (study level etc.) — treat as onboarded on failure
+    // so a backend hiccup never blocks the app.
+    api('/profile').then(setProfile).catch(() => setProfile({ onboarded: true }));
   }, [session?.user.id]);
 
-  const loading = session === undefined || onboarded === undefined || (session && subscription === undefined);
+  const loading = session === undefined || onboarded === undefined || (session && (subscription === undefined || profile === undefined));
   const entitled = !session || subscription?.entitled;
 
   return (
@@ -269,6 +280,10 @@ export default function App() {
           ) : !entitled ? (
             <ScrollView contentContainerStyle={{ maxWidth: 520, width: '100%', alignSelf: 'center' }}>
               <PaywallScreen subscription={subscription} onRefreshSubscription={refreshSubscription} />
+            </ScrollView>
+          ) : profile && !profile.onboarded ? (
+            <ScrollView contentContainerStyle={{ maxWidth: 520, width: '100%', alignSelf: 'center' }}>
+              <ProfileSetupScreen onDone={() => setProfile({ ...profile, onboarded: true })} />
             </ScrollView>
           ) : (
             <AppShell

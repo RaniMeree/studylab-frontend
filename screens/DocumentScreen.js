@@ -1,13 +1,171 @@
-import { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { AudioModule, RecordingPresets, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { api, postJson } from '../api';
-import { useT } from '../i18n';
+import { UI_LANGUAGES, useT } from '../i18n';
 import { usePlayer } from '../player';
 import { useThemeColors } from '../theme';
 import { Body, Button, Card, ErrorText, Icon, Input, Label, Loading, Muted, Pill, Row, Segmented, Title } from '../ui';
 
-const SUMMARY_LABELS = { quick: 'Quick summary', ai: 'AI summary', simple: 'Simple explanation' };
+const SUMMARY_LABELS = { quick: 'Quick summary', ai: 'AI summary', simple: 'Simple explanation', lecture: 'Lecture narration' };
+
+const WORD_STEPS = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
+
+const SIMPLICITY_LEVELS = [
+  { key: 'child',  label: '🧒 Child',  desc: 'Age 8 — very simple words' },
+  { key: 'teen',   label: '🧑 Teen',   desc: 'Age 14 — everyday language' },
+  { key: 'adult',  label: '👤 Adult',  desc: 'Clear plain language' },
+  { key: 'expert', label: '🎓 Expert', desc: 'Technical & precise' },
+];
+
+function SummaryOptionsSheet({ visible, mode, docLanguage, uiLang, sections, onClose, onGenerate }) {
+  const c = useThemeColors();
+  const [maxWords, setMaxWords] = useState(300);
+  const [summaryLang, setSummaryLang] = useState(null); // null = same as doc
+  const [simplicity, setSimplicity] = useState('teen');
+  const [section, setSection] = useState(null); // null = whole document
+
+  const isSimple = mode === 'simple';
+  const isAi = mode === 'ai' || mode === 'lecture' || isSimple;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+      <View style={{
+        backgroundColor: '#0f0a1e', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+        padding: 24, paddingBottom: 36,
+        borderTopWidth: 1, borderColor: 'rgba(167,139,250,0.2)',
+        shadowColor: '#7C3AED', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.3, shadowRadius: 20,
+      }}>
+        {/* Handle */}
+        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(167,139,250,0.3)', alignSelf: 'center', marginBottom: 20 }} />
+
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17, marginBottom: 20 }}>
+          {mode === 'quick' ? '⚡ Quick Summary' : mode === 'ai' ? '✨ AI Summary' : mode === 'lecture' ? '🎓 Expand into Lecture' : '💡 Explain Simply'} — Options
+        </Text>
+
+        {/* Section scope (research papers) */}
+        {sections?.length > 0 && (
+          <>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+              Scope
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[null, ...sections].map((sec) => {
+                  const active = section === sec;
+                  return (
+                    <TouchableOpacity
+                      key={sec ?? 'whole'}
+                      onPress={() => setSection(sec)}
+                      style={{
+                        paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+                        backgroundColor: active ? '#0EA5E9' : 'rgba(255,255,255,0.06)',
+                        borderWidth: 1, borderColor: active ? '#0EA5E9' : 'rgba(167,139,250,0.18)',
+                      }}
+                    >
+                      <Text style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', fontWeight: '700', fontSize: 13 }}>
+                        {sec ?? '📄 Whole paper'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </>
+        )}
+
+        {/* Length */}
+        <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+          Length — {maxWords} words
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {WORD_STEPS.map((w) => (
+              <TouchableOpacity
+                key={w}
+                onPress={() => setMaxWords(w)}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+                  backgroundColor: maxWords === w ? '#7C3AED' : 'rgba(255,255,255,0.06)',
+                  borderWidth: 1, borderColor: maxWords === w ? '#7C3AED' : 'rgba(167,139,250,0.18)',
+                }}
+              >
+                <Text style={{ color: maxWords === w ? '#fff' : 'rgba(255,255,255,0.5)', fontWeight: '700', fontSize: 13 }}>{w}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Simplicity (simple mode only) */}
+        {isSimple && (
+          <>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+              Simplicity level
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+              {SIMPLICITY_LEVELS.map((l) => (
+                <TouchableOpacity
+                  key={l.key}
+                  onPress={() => setSimplicity(l.key)}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14,
+                    backgroundColor: simplicity === l.key ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.04)',
+                    borderWidth: 1, borderColor: simplicity === l.key ? '#7C3AED' : 'rgba(167,139,250,0.18)',
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{l.label}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>{l.desc}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Output language (AI modes only) */}
+        {isAi && (
+          <>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+              Output language
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[{ code: null, label: 'Auto', flag: '🌐' }, ...UI_LANGUAGES].map((l) => {
+                  const active = summaryLang === l.code;
+                  return (
+                    <TouchableOpacity
+                      key={l.code ?? 'auto'}
+                      onPress={() => setSummaryLang(l.code)}
+                      style={{
+                        alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
+                        backgroundColor: active ? '#7C3AED' : 'rgba(255,255,255,0.06)',
+                        borderWidth: 1, borderColor: active ? '#7C3AED' : 'rgba(167,139,250,0.18)',
+                      }}
+                    >
+                      <Text style={{ fontSize: 18 }}>{l.flag}</Text>
+                      <Text style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: 10, marginTop: 3, fontWeight: '600' }}>{l.label.slice(0, 6)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </>
+        )}
+
+        <TouchableOpacity
+          onPress={() => { onClose(); onGenerate({ maxWords, summaryLang, simplicity, section }); }}
+          style={{
+            paddingVertical: 16, borderRadius: 16, alignItems: 'center', backgroundColor: '#7C3AED',
+            shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 16,
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Generate</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
 
 function formatTime(seconds) {
   if (!seconds || Number.isNaN(seconds)) return '';
@@ -47,15 +205,25 @@ export function DocumentScreen({ docId, voicesByLanguage, onBack }) {
 
   return (
     <View style={{ padding: 18 }}>
+      {/* Breadcrumb: back to the course by name */}
       <TouchableOpacity onPress={onBack} hitSlop={8} style={{ marginBottom: 8 }}>
         <Row style={{ gap: 4 }}>
-          <Icon name="chevron-back" size={16} color={c.accent} />
-          <Muted style={{ color: c.accent }}>{t('back')}</Muted>
+          <Icon name="chevron-back" size={16} color={doc.course_color ?? c.accent} />
+          <Text numberOfLines={1} style={{ color: doc.course_color ?? c.accent, fontSize: 13, fontWeight: '600' }}>
+            📁 {doc.course_name ?? t('back')}
+          </Text>
         </Row>
       </TouchableOpacity>
       <Title numberOfLines={1} style={{ fontSize: 19 }}>{doc.filename}</Title>
+      {/* Course color strip so the student always knows which course they're in */}
+      <View style={{
+        height: 3, borderRadius: 2, marginTop: 8, width: 56,
+        backgroundColor: doc.course_color ?? c.accent,
+        shadowColor: doc.course_color ?? c.accent,
+        shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 6,
+      }} />
       {doc.progress_percent > 0 && (
-        <Muted style={{ marginTop: 2 }}>{doc.progress_percent}% complete</Muted>
+        <Muted style={{ marginTop: 6 }}>{doc.progress_percent}% complete</Muted>
       )}
 
       <View style={{ marginTop: 12, marginBottom: 14 }}>
@@ -280,6 +448,7 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
   const t = useT();
   const player = usePlayer();
   const [summarizing, setSummarizing] = useState(false);
+  const [summarySheet, setSummarySheet] = useState(null); // null | 'quick' | 'ai' | 'simple'
   const [glossary, setGlossary] = useState(null);
   const [loadingGlossary, setLoadingGlossary] = useState(false);
   const [generatingCards, setGeneratingCards] = useState(false);
@@ -303,11 +472,18 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
     api(`/documents/${docId}/quiz`).then(setQuiz).catch(() => setQuiz(null));
   }, [docId]);
 
-  const doSummarize = async (mode) => {
+  const doSummarize = async (mode, opts = {}) => {
     setSummarizing(true);
     setError('');
     try {
-      const data = await postJson(`/documents/${docId}/summarize`, { mode, voice_id: voiceId });
+      const data = await postJson(`/documents/${docId}/summarize`, {
+        mode,
+        voice_id: voiceId,
+        max_words: opts.maxWords ?? 300,
+        summary_language: opts.summaryLang ?? null,
+        simplicity: opts.simplicity ?? 'teen',
+        section: opts.section ?? null,
+      });
       player.playSaved(SUMMARY_LABELS[mode] ?? 'Summary', data, doc.filename);
       refresh();
     } catch (e) {
@@ -427,11 +603,40 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
 
   return (
     <View>
+      <SummaryOptionsSheet
+        visible={summarySheet !== null}
+        mode={summarySheet}
+        docLanguage={doc.language}
+        sections={doc.doc_type === 'paper'
+          ? doc.chapters.map((ch) => ch.title).filter((s) => s !== 'Title & Authors' && s !== 'References')
+          : doc.doc_type === 'slides'
+            ? doc.chapters.map((ch) => ch.title)
+            : null}
+        onClose={() => setSummarySheet(null)}
+        onGenerate={(opts) => doSummarize(summarySheet, opts)}
+      />
+
+      {doc.doc_type === 'paper' && <PaperTools doc={doc} docId={docId} setError={setError} />}
+      {doc.doc_type === 'slides' && (
+        <View style={{ marginBottom: 18 }}>
+          <Label>📊 Slides tools</Label>
+          <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+            <Pill label="🎓 Expand into lecture" onPress={() => setSummarySheet('lecture')} disabled={summarizing} />
+          </Row>
+          <Muted style={{ marginTop: 6 }}>
+            Turns the bullet points into a flowing spoken lecture you can listen to.
+          </Muted>
+        </View>
+      )}
+      {doc.doc_type === 'lecture' && <LectureTools docId={docId} setError={setError} />}
+      {doc.doc_type === 'exam' && <ExamTools doc={doc} docId={docId} setError={setError} refresh={refresh} />}
+      {doc.doc_type === 'assignment' && <AssignmentTools doc={doc} docId={docId} setError={setError} />}
+
       <Label>{t('summaries')}</Label>
       <Row style={{ flexWrap: 'wrap', gap: 6 }}>
-        <Pill label={t('quick')} onPress={() => doSummarize('quick')} disabled={summarizing} />
-        <Pill label={t('aiSummary')} onPress={() => doSummarize('ai')} disabled={summarizing} />
-        <Pill label={t('explainSimply')} onPress={() => doSummarize('simple')} disabled={summarizing} />
+        <Pill label={t('quick')} onPress={() => setSummarySheet('quick')} disabled={summarizing} />
+        <Pill label={t('aiSummary')} onPress={() => setSummarySheet('ai')} disabled={summarizing} />
+        <Pill label={t('explainSimply')} onPress={() => setSummarySheet('simple')} disabled={summarizing} />
         <Pill label={t('keyTerms')} onPress={loadGlossary} disabled={loadingGlossary} />
       </Row>
       {(summarizing || loadingGlossary) && <Loading label={summarizing ? 'Summarizing…' : 'Extracting terms…'} />}
@@ -557,64 +762,608 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
   );
 }
 
+const CITATION_STYLES = ['apa', 'mla', 'harvard', 'bibtex'];
+
+function PaperTools({ doc, docId, setError }) {
+  const c = useThemeColors();
+  const [card, setCard] = useState(doc.paper_meta?.card ?? null);
+  const [loadingCard, setLoadingCard] = useState(false);
+  const [citeStyle, setCiteStyle] = useState(null);
+  const [citation, setCitation] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const loadCard = async () => {
+    setLoadingCard(true);
+    setError('');
+    try {
+      setCard(await postJson(`/documents/${docId}/paper-card`, {}));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingCard(false);
+    }
+  };
+
+  const loadCitation = async (style) => {
+    setCiteStyle(style);
+    setCitation('');
+    setCopied(false);
+    setError('');
+    try {
+      const { citation: text } = await api(`/documents/${docId}/citation?style=${style}`);
+      setCitation(text);
+    } catch (e) {
+      setError(e.message);
+      setCiteStyle(null);
+    }
+  };
+
+  const copyCitation = async () => {
+    await Clipboard.setStringAsync(citation);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const hasMeta = !!doc.paper_meta?.title;
+
+  const CARD_ROWS = card ? [
+    { icon: '🎯', label: 'Research question', value: card.research_question },
+    { icon: '🧪', label: 'Method', value: card.method },
+    { icon: '⚠️', label: 'Limitations', value: card.limitations },
+    { icon: '💡', label: 'Why it matters', value: card.why_it_matters },
+  ] : [];
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Label>🔬 Paper tools</Label>
+
+      {/* Citation metadata strip */}
+      {hasMeta && (
+        <Muted style={{ marginBottom: 8 }} numberOfLines={2}>
+          {doc.paper_meta.authors?.slice(0, 3).join(', ')}
+          {doc.paper_meta.authors?.length > 3 ? ' et al.' : ''}
+          {doc.paper_meta.year ? ` · ${doc.paper_meta.year}` : ''}
+          {doc.paper_meta.journal ? ` · ${doc.paper_meta.journal}` : ''}
+        </Muted>
+      )}
+
+      <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+        <Pill label={card ? '📋 Paper digest ✓' : loadingCard ? '…' : '📋 Paper digest'} onPress={card ? undefined : loadCard} disabled={loadingCard} />
+        {hasMeta && CITATION_STYLES.map((s) => (
+          <Pill key={s} label={s === 'bibtex' ? 'BibTeX' : s.toUpperCase()} active={citeStyle === s} onPress={() => loadCitation(s)} />
+        ))}
+      </Row>
+      {loadingCard && <Loading label="Reading the paper…" />}
+
+      {/* Citation output */}
+      {citation ? (
+        <Card style={{ marginTop: 10 }}>
+          <Body selectable style={{ color: c.textSecondary, fontSize: 13, fontFamily: citeStyle === 'bibtex' ? 'monospace' : undefined }}>
+            {citation}
+          </Body>
+          <TouchableOpacity onPress={copyCitation} style={{ marginTop: 8 }}>
+            <Text style={{ color: c.accent, fontSize: 13 }}>{copied ? 'Copied ✓' : 'Copy citation'}</Text>
+          </TouchableOpacity>
+        </Card>
+      ) : null}
+
+      {/* Paper digest card */}
+      {card && (
+        <Card style={{ marginTop: 10 }}>
+          {CARD_ROWS.filter((r) => r.value).map((r) => (
+            <View key={r.label} style={{ marginBottom: 12 }}>
+              <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3 }}>
+                {r.icon} {r.label}
+              </Text>
+              <Body selectable style={{ color: c.textSecondary, fontSize: 13, lineHeight: 20 }}>{r.value}</Body>
+            </View>
+          ))}
+          {card.findings?.length > 0 && (
+            <View>
+              <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3 }}>
+                📊 Key findings
+              </Text>
+              {card.findings.map((f, i) => (
+                <Body key={i} selectable style={{ color: c.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 3 }}>
+                  {i + 1}. {f}
+                </Body>
+              ))}
+            </View>
+          )}
+        </Card>
+      )}
+    </View>
+  );
+}
+
+function LectureTools({ docId, setError }) {
+  const c = useThemeColors();
+  const [topics, setTopics] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadOutline = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { topics: t } = await postJson(`/documents/${docId}/lecture-outline`, {});
+      setTopics(t);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Label>🎬 Lecture tools</Label>
+      <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+        <Pill label={topics ? '🗂 Topic outline ✓' : loading ? '…' : '🗂 Topic outline'} onPress={topics ? undefined : loadOutline} disabled={loading} />
+      </Row>
+      {loading && <Loading label="Outlining the lecture…" />}
+      {topics && (
+        <Card style={{ marginTop: 10 }}>
+          {topics.map((topic, i) => (
+            <View key={i} style={{ marginBottom: i < topics.length - 1 ? 14 : 0 }}>
+              <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700', marginBottom: 4 }}>
+                {i + 1}. {topic.title}
+              </Text>
+              {topic.points.map((p, j) => (
+                <Body key={j} selectable style={{ color: c.textSecondary, fontSize: 13, lineHeight: 20, marginLeft: 12, marginTop: 2 }}>
+                  · {p}
+                </Body>
+              ))}
+            </View>
+          ))}
+        </Card>
+      )}
+    </View>
+  );
+}
+
+function ExamTools({ doc, docId, setError, refresh }) {
+  const c = useThemeColors();
+  const [generating, setGenerating] = useState(false);
+  const [generatedCount, setGeneratedCount] = useState(null);
+
+  const generate = async () => {
+    setGenerating(true);
+    setError('');
+    try {
+      const { count } = await postJson(`/documents/${docId}/exam-cards`, {});
+      setGeneratedCount(count);
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Label>📜 Exam tools</Label>
+      <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+        <Pill
+          label={generating ? '…' : '🎯 Create practice cards'}
+          onPress={generate}
+          disabled={generating}
+        />
+      </Row>
+      {generating && <Loading label="Writing model answers…" />}
+      {generatedCount !== null && !generating && (
+        <Muted style={{ marginTop: 6 }}>
+          Added {generatedCount} practice card{generatedCount === 1 ? '' : 's'} with model answers — review them in the Flashcards section below.
+        </Muted>
+      )}
+      {generatedCount === null && (
+        <Muted style={{ marginTop: 6 }}>
+          Extracts every question and writes a model answer, then adds them as flashcards for practice.
+        </Muted>
+      )}
+    </View>
+  );
+}
+
+function GuideBlock({ icon, label, children }) {
+  const c = useThemeColors();
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={{ color: c.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+        {icon} {label}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+function AssignmentTools({ doc, docId, setError }) {
+  const c = useThemeColors();
+  const [guide, setGuide] = useState(doc.paper_meta?.guide ?? null);
+  const [loadingGuide, setLoadingGuide] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
+
+  const loadGuide = async () => {
+    setLoadingGuide(true);
+    setError('');
+    try {
+      setGuide(await postJson(`/documents/${docId}/assignment-guide`, {}));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingGuide(false);
+    }
+  };
+
+  const getFeedback = async () => {
+    if (draft.trim().length < 100) return;
+    setLoadingFeedback(true);
+    setError('');
+    setFeedback(null);
+    try {
+      setFeedback(await postJson(`/documents/${docId}/assignment-feedback`, { draft }));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingFeedback(false);
+    }
+  };
+
+  const body = { color: c.textSecondary, fontSize: 13, lineHeight: 20 };
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Label>📝 Assignment coach</Label>
+      <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+        <Pill label={guide ? '📋 Brief decoded ✓' : loadingGuide ? '…' : '📋 Decode brief & plan'} onPress={guide ? undefined : loadGuide} disabled={loadingGuide} />
+        <Pill label="✍️ Feedback on my draft" active={draftOpen} onPress={() => setDraftOpen((v) => !v)} />
+      </Row>
+      {loadingGuide && <Loading label="Reading the brief…" />}
+
+      {/* Guide */}
+      {guide && (
+        <Card style={{ marginTop: 10 }}>
+          {!!guide.task_summary && (
+            <GuideBlock icon="🎯" label="What is actually asked">
+              <Body selectable style={body}>{guide.task_summary}</Body>
+            </GuideBlock>
+          )}
+          {guide.deliverables?.length > 0 && (
+            <GuideBlock icon="📦" label="Deliverables">
+              {guide.deliverables.map((d, i) => (
+                <Body key={i} selectable style={{ ...body, marginTop: 2 }}>· {d}</Body>
+              ))}
+            </GuideBlock>
+          )}
+          {guide.constraints?.length > 0 && (
+            <GuideBlock icon="📏" label="Rules & constraints">
+              {guide.constraints.map((d, i) => (
+                <Body key={i} selectable style={{ ...body, marginTop: 2 }}>· {d}</Body>
+              ))}
+            </GuideBlock>
+          )}
+          {guide.grading_criteria?.length > 0 && (
+            <GuideBlock icon="🏆" label="What the grader wants">
+              {guide.grading_criteria.map((g, i) => (
+                <View key={i} style={{ marginTop: 4 }}>
+                  <Body selectable style={{ ...body, fontWeight: '600', color: c.text }}>{g.criterion}</Body>
+                  <Body selectable style={body}>{g.what_the_grader_wants}</Body>
+                </View>
+              ))}
+            </GuideBlock>
+          )}
+          {guide.outline?.length > 0 && (
+            <GuideBlock icon="🗺️" label="Suggested structure">
+              {guide.outline.map((o, i) => (
+                <View key={i} style={{ marginTop: 4 }}>
+                  <Body selectable style={{ ...body, fontWeight: '600', color: c.text }}>
+                    {i + 1}. {o.section}{o.word_budget ? `  (~${o.word_budget} words)` : ''}
+                  </Body>
+                  <Body selectable style={body}>{o.goal}</Body>
+                </View>
+              ))}
+            </GuideBlock>
+          )}
+          {guide.steps?.length > 0 && (
+            <GuideBlock icon="👣" label="Work plan">
+              {guide.steps.map((st, i) => (
+                <Body key={i} selectable style={{ ...body, marginTop: 2 }}>{i + 1}. {st}</Body>
+              ))}
+            </GuideBlock>
+          )}
+          {guide.relevant_materials?.length > 0 && (
+            <GuideBlock icon="🔗" label="Useful materials in this course">
+              {guide.relevant_materials.map((m, i) => (
+                <View key={i} style={{ marginTop: 4 }}>
+                  <Body selectable style={{ ...body, fontWeight: '600', color: c.text }}>{m.title}</Body>
+                  <Body selectable style={body}>{m.why}</Body>
+                </View>
+              ))}
+            </GuideBlock>
+          )}
+          {guide.pitfalls?.length > 0 && (
+            <GuideBlock icon="⚠️" label="Common pitfalls">
+              {guide.pitfalls.map((p, i) => (
+                <Body key={i} selectable style={{ ...body, marginTop: 2 }}>· {p}</Body>
+              ))}
+            </GuideBlock>
+          )}
+        </Card>
+      )}
+
+      {/* Draft feedback */}
+      {draftOpen && (
+        <Card style={{ marginTop: 10 }}>
+          <Muted style={{ marginBottom: 8 }}>
+            Paste your own draft — you'll get tutor-style notes, not a rewrite.
+          </Muted>
+          <Input
+            placeholder="Paste your draft here…"
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+            style={{ minHeight: 120, textAlignVertical: 'top', marginBottom: 8 }}
+          />
+          <Button
+            label={loadingFeedback ? '…' : 'Get feedback'}
+            small
+            onPress={getFeedback}
+            disabled={loadingFeedback || draft.trim().length < 100}
+          />
+          {loadingFeedback && <Loading label="Reading your draft…" />}
+          {feedback && (
+            <View style={{ marginTop: 14 }}>
+              {feedback.strengths?.length > 0 && (
+                <GuideBlock icon="💪" label="Strengths">
+                  {feedback.strengths.map((s, i) => (
+                    <Body key={i} selectable style={{ ...body, marginTop: 2 }}>· {s}</Body>
+                  ))}
+                </GuideBlock>
+              )}
+              {feedback.issues?.length > 0 && (
+                <GuideBlock icon="🔍" label="Issues to fix">
+                  {feedback.issues.map((iss, i) => (
+                    <View key={i} style={{ marginTop: 6, paddingLeft: 8, borderLeftWidth: 2, borderLeftColor: c.accent }}>
+                      <Body selectable style={{ ...body, fontWeight: '600', color: c.text }}>{iss.where}</Body>
+                      <Body selectable style={body}>{iss.problem}</Body>
+                      <Body selectable style={{ ...body, color: c.accent }}>→ {iss.how_to_fix}</Body>
+                    </View>
+                  ))}
+                </GuideBlock>
+              )}
+              {feedback.missing?.length > 0 && (
+                <GuideBlock icon="🕳️" label="Not yet addressed">
+                  {feedback.missing.map((m, i) => (
+                    <Body key={i} selectable style={{ ...body, marginTop: 2 }}>· {m}</Body>
+                  ))}
+                </GuideBlock>
+              )}
+              {feedback.checklist?.length > 0 && (
+                <GuideBlock icon="✅" label="Submission checklist">
+                  {feedback.checklist.map((item, i) => (
+                    <Body key={i} selectable style={{ ...body, marginTop: 2 }}>
+                      {item.done ? '✓' : '✗'} {item.item}{item.note ? ` — ${item.note}` : ''}
+                    </Body>
+                  ))}
+                </GuideBlock>
+              )}
+            </View>
+          )}
+        </Card>
+      )}
+    </View>
+  );
+}
+
+function ChatBubble({ role, text, time, children }) {
+  const c = useThemeColors();
+  const isUser = role === 'user';
+  return (
+    <View style={{ alignItems: isUser ? 'flex-end' : 'flex-start', marginTop: 10 }}>
+      <View style={{
+        maxWidth: '85%', padding: 12, borderRadius: 18,
+        borderBottomRightRadius: isUser ? 4 : 18,
+        borderBottomLeftRadius: isUser ? 18 : 4,
+        backgroundColor: isUser
+          ? '#7C3AED'
+          : (c.glass ? 'rgba(255,255,255,0.06)' : c.card),
+        borderWidth: isUser ? 0 : 1,
+        borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+      }}>
+        <Body selectable style={{ color: isUser ? '#fff' : c.text, fontSize: 14, lineHeight: 21 }}>{text}</Body>
+        {children}
+      </View>
+      {time ? (
+        <Text style={{ color: c.textMuted, fontSize: 10, marginTop: 3, marginHorizontal: 4 }}>
+          {new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function TypingDots() {
+  const c = useThemeColors();
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => (n + 1) % 3), 400);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <Text style={{ color: c.textMuted, fontSize: 18, letterSpacing: 2 }}>
+      {'●○○ ○●○ ○○●'.split(' ')[tick]}
+    </Text>
+  );
+}
+
 function AskSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyText }) {
   const c = useThemeColors();
   const t = useT();
   const player = usePlayer();
   const [question, setQuestion] = useState('');
   const [asking, setAsking] = useState(false);
+  const [pendingQ, setPendingQ] = useState(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+  const chatEndRef = useRef(null);
 
-  const ask = async () => {
-    if (!question.trim()) return;
+  // Chat history: persisted questions in chronological order
+  const messages = [...doc.questions].sort(
+    (a, b) => new Date(a.created) - new Date(b.created)
+  );
+
+  const ask = async (text) => {
+    const q = (text ?? question).trim();
+    if (!q) return;
     setAsking(true);
+    setPendingQ(q);
+    setQuestion('');
     setError('');
     try {
-      const data = await postJson(`/documents/${docId}/ask`, { question, voice_id: voiceId });
-      setQuestion('');
-      if (data.audio_url) player.playSaved('Answer', data, doc.filename);
+      await postJson(`/documents/${docId}/ask`, { question: q, voice_id: voiceId });
       refresh();
     } catch (e) {
       setError(e.message);
+      setQuestion(q); // give the text back so the user can retry
     } finally {
       setAsking(false);
+      setPendingQ(null);
     }
   };
 
+  const toggleRecording = async () => {
+    setError('');
+    try {
+      if (recorderState.isRecording) {
+        await recorder.stop();
+        const uri = recorder.uri;
+        if (!uri) return;
+        setTranscribing(true);
+        const form = new FormData();
+        if (Platform.OS === 'web') {
+          const blob = await (await fetch(uri)).blob();
+          form.append('file', blob, 'recording.webm');
+        } else {
+          form.append('file', { uri, name: 'recording.m4a', type: 'audio/m4a' });
+        }
+        const { text } = await api('/transcribe', { method: 'POST', body: form });
+        setQuestion((prev) => (prev ? `${prev} ${text}` : text));
+      } else {
+        const status = await AudioModule.requestRecordingPermissionsAsync();
+        if (!status.granted) {
+          setError('Microphone permission denied.');
+          return;
+        }
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const recording = recorderState.isRecording;
+
   return (
     <View>
-      <Row style={{ gap: 8 }}>
-        <Input
-          placeholder={t('askPlaceholder')}
+      {/* Chat history */}
+      {messages.length === 0 && !pendingQ && (
+        <View style={{ alignItems: 'center', paddingVertical: 28 }}>
+          <Text style={{ fontSize: 34, marginBottom: 8 }}>💬</Text>
+          <Muted style={{ textAlign: 'center' }}>
+            Ask anything about this document.{'\n'}Type below or tap the mic to speak.
+          </Muted>
+        </View>
+      )}
+
+      {messages.map((q) => (
+        <View key={q.id}>
+          <ChatBubble role="user" text={q.question} time={q.created} />
+          <ChatBubble role="assistant" text={q.answer}>
+            <Row style={{ gap: 16, marginTop: 8 }}>
+              {q.audio_url ? (
+                <TouchableOpacity onPress={() => player.playSaved('Answer', q, doc.filename)}>
+                  <Row style={{ gap: 4 }}>
+                    <Icon name="play" size={13} color={c.accent} />
+                    <Text style={{ color: c.accent, fontSize: 12 }}>{t('play')}</Text>
+                  </Row>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={() => copyText(q.id, q.answer)}>
+                <Text style={{ color: c.accent, fontSize: 12 }}>{copiedKey === q.id ? t('copied') : t('copy')}</Text>
+              </TouchableOpacity>
+            </Row>
+          </ChatBubble>
+        </View>
+      ))}
+
+      {pendingQ && (
+        <View>
+          <ChatBubble role="user" text={pendingQ} />
+          <View style={{ alignItems: 'flex-start', marginTop: 10 }}>
+            <View style={{
+              padding: 12, paddingHorizontal: 16, borderRadius: 18, borderBottomLeftRadius: 4,
+              backgroundColor: c.glass ? 'rgba(255,255,255,0.06)' : c.card,
+              borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.2)' : c.border,
+            }}>
+              <TypingDots />
+            </View>
+          </View>
+        </View>
+      )}
+      <View ref={chatEndRef} />
+
+      {/* Input row */}
+      <View style={{
+        flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 16,
+        backgroundColor: c.glass ? 'rgba(255,255,255,0.05)' : c.card,
+        borderRadius: 22, borderWidth: 1,
+        borderColor: recording ? '#F87171' : (c.glass ? 'rgba(167,139,250,0.25)' : c.border),
+        paddingHorizontal: 6, paddingVertical: 6,
+      }}>
+        <TextInput
+          placeholder={recording ? '🔴 Listening…' : transcribing ? 'Transcribing…' : t('askPlaceholder')}
+          placeholderTextColor={recording ? '#F87171' : c.textMuted}
           value={question}
           onChangeText={setQuestion}
-          onSubmitEditing={ask}
-          style={{ flex: 1 }}
+          onSubmitEditing={() => ask()}
+          editable={!asking && !recording && !transcribing}
+          multiline
+          style={{
+            flex: 1, color: c.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 8,
+            maxHeight: 100, outlineStyle: 'none',
+          }}
         />
-        <Button label={asking ? '…' : 'Ask'} small onPress={ask} disabled={asking || !question.trim()} />
-      </Row>
-      {asking && <Loading label="Thinking…" />}
-      {[...doc.questions].reverse().map((q) => (
-        <Card key={q.id} style={{ marginTop: 8 }}>
-          <Body style={{ fontWeight: '600', color: c.accent }}>Q: {q.question}</Body>
-          <Body selectable style={{ marginTop: 6, color: c.textSecondary }}>{q.answer}</Body>
-          <Row style={{ gap: 16, marginTop: 10 }}>
-            {q.audio_url ? (
-              <TouchableOpacity onPress={() => player.playSaved('Answer', q, doc.filename)}>
-                <Row style={{ gap: 4 }}>
-                  <Icon name="play" size={14} color={c.accent} />
-                  <Text style={{ color: c.accent, fontSize: 13 }}>Play</Text>
-                </Row>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity onPress={() => copyText(q.id, q.answer)}>
-              <Text style={{ color: c.accent, fontSize: 13 }}>{copiedKey === q.id ? 'Copied' : 'Copy'}</Text>
-            </TouchableOpacity>
-          </Row>
-        </Card>
-      ))}
-      {doc.questions.length === 0 && !asking && (
-        <Muted style={{ marginTop: 12 }}>No questions yet — ask your first one above.</Muted>
-      )}
+        {/* Mic button */}
+        <TouchableOpacity
+          onPress={toggleRecording}
+          disabled={asking || transcribing}
+          style={{
+            width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: recording ? '#F87171' : 'rgba(124,58,237,0.25)',
+            borderWidth: 1, borderColor: recording ? '#F87171' : 'rgba(167,139,250,0.4)',
+          }}
+        >
+          <Icon name={recording ? 'stop' : 'mic'} size={18} color={recording ? '#fff' : c.accent} />
+        </TouchableOpacity>
+        {/* Send button */}
+        <TouchableOpacity
+          onPress={() => ask()}
+          disabled={asking || !question.trim()}
+          style={{
+            width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: question.trim() && !asking ? '#7C3AED' : 'rgba(124,58,237,0.2)',
+          }}
+        >
+          <Icon name="arrow-up" size={18} color="#fff" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
