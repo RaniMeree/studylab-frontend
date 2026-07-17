@@ -46,6 +46,21 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
     }
   };
 
+  const [demoBusy, setDemoBusy] = useState(false);
+  const tryDemo = async () => {
+    setDemoBusy(true);
+    setError('');
+    try {
+      const doc = await postJson('/demo', {});
+      refresh();
+      onOpenDocument(doc.course_id, doc.id);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDemoBusy(false);
+    }
+  };
+
   const deleteCourse = async (id) => {
     try {
       await api(`/courses/${id}`, { method: 'DELETE' });
@@ -233,11 +248,27 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
       })}
 
       {courses?.length === 0 && (
-        <EmptyState
-          icon="folder-open-outline"
-          title="Start your first course"
-          body="Create a course above, then add PDFs, photos, or links to start listening."
-        />
+        <>
+          <EmptyState
+            icon="folder-open-outline"
+            title="Start your first course"
+            body="Create a course above, then add PDFs, photos, or links to start listening."
+          />
+          <TouchableOpacity
+            onPress={tryDemo}
+            disabled={demoBusy}
+            style={{
+              alignSelf: 'center', marginTop: 4, paddingVertical: 12, paddingHorizontal: 22,
+              borderRadius: 14, backgroundColor: 'rgba(124,58,237,0.3)',
+              borderWidth: 1, borderColor: 'rgba(167,139,250,0.5)',
+              opacity: demoBusy ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+              {demoBusy ? 'Setting up…' : '✨ Try a sample document'}
+            </Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
