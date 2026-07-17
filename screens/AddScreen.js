@@ -4,7 +4,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { api, postJson } from '../api';
 import { useT } from '../i18n';
 import { useThemeColors } from '../theme';
-import { Body, Button, Card, ErrorText, Icon, Input, Label, Loading, Muted, NeonBar, Pill, Row, Title } from '../ui';
+import { Body, Button, Card, ErrorText, Icon, Input, Label, Loading, Muted, NeonBar, Pill, ProgressCard, Row, Title } from '../ui';
 
 const DOC_TYPES = [
   { key: 'standard', emoji: '📄', label: 'Standard', color: '#7C3AED', hint: 'Book chapters, notes, articles — split automatically' },
@@ -27,6 +27,7 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
   const [pasteTitle, setPasteTitle] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null); // { stages, detail }
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -45,6 +46,16 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
   const uploadAsset = async (picked, fallbackName, mimeType) => {
     setBusy(true);
     setError('');
+    const sizeKb = picked.size ? Math.round(picked.size / 1024) : null;
+    const analyzeSec = Math.max(8, Math.round(6 + (picked.size ?? 500_000) / 150_000));
+    setProgress({
+      stages: [
+        { label: 'Uploading file', estimateSec: 5 },
+        { label: 'Extracting text', estimateSec: Math.round(analyzeSec * 0.5) },
+        { label: 'Splitting into sections', estimateSec: Math.round(analyzeSec * 0.5) },
+      ],
+      detail: `${picked.name ?? fallbackName}${sizeKb ? ` · ${sizeKb} KB` : ''}`,
+    });
     try {
       const formData = new FormData();
       if (Platform.OS === 'web' && picked.file) {
@@ -88,6 +99,7 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
       setError(e.message);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -118,6 +130,15 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
     if (!url.trim()) return;
     setBusy(true);
     setError('');
+    const isYt = /youtu\.?be/.test(url);
+    setProgress({
+      stages: [
+        { label: isYt ? 'Fetching video transcript' : 'Fetching the page', estimateSec: 10 },
+        { label: 'Extracting text', estimateSec: 6 },
+        { label: 'Splitting into sections', estimateSec: 6 },
+      ],
+      detail: url.trim(),
+    });
     try {
       const doc = await postJson(`/courses/${courseId}/import-url`, {
         url: url.trim(),
@@ -130,6 +151,7 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
       setError(e.message);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -137,6 +159,13 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
     if (pasteText.trim().length < 40) return;
     setBusy(true);
     setError('');
+    setProgress({
+      stages: [
+        { label: 'Importing text', estimateSec: 4 },
+        { label: 'Splitting into sections', estimateSec: 5 },
+      ],
+      detail: `${pasteText.length.toLocaleString()} characters`,
+    });
     try {
       const doc = await postJson(`/courses/${courseId}/import-text`, {
         text: pasteText,
@@ -152,6 +181,7 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
       setError(e.message);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -237,7 +267,7 @@ export function AddScreen({ preselectedCourseId, voicesByLanguage, onImported })
       </Text>
 
       <ErrorText>{error}</ErrorText>
-      {busy && <Loading label="Importing…" />}
+      {busy && (progress ? <ProgressCard stages={progress.stages} detail={progress.detail} /> : <Loading label="Importing…" />)}
 
       <UploadButton emoji="📄" title={t('uploadFile')} subtitle="PDF, EPUB, Word, PowerPoint, or text" onPress={addFile} glowColor="#EF4444" />
       <UploadButton emoji="📷" title={t('scanPage')} subtitle="Photograph a book or handout page" onPress={addPhoto} glowColor="#22C55E" />

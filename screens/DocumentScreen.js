@@ -6,7 +6,7 @@ import { api, postJson } from '../api';
 import { UI_LANGUAGES, useT } from '../i18n';
 import { usePlayer } from '../player';
 import { useThemeColors } from '../theme';
-import { Body, Button, Card, ErrorText, Icon, Input, Label, Loading, Muted, Pill, Row, Segmented, Title } from '../ui';
+import { Body, Button, Card, ErrorText, Icon, Input, Label, Loading, Muted, Pill, ProgressCard, Row, Segmented, SkeletonRows, Title, progressEstimate, useToast } from '../ui';
 
 const SUMMARY_LABELS = { quick: 'Quick summary', ai: 'AI summary', simple: 'Simple explanation', lecture: 'Lecture narration' };
 
@@ -199,7 +199,14 @@ export function DocumentScreen({ docId, voicesByLanguage, onBack }) {
     setTimeout(() => setCopiedKey(null), 1500);
   };
 
-  if (!doc) return <Loading label="Loading document…" />;
+  if (!doc) {
+    return (
+      <View style={{ padding: 16 }}>
+        <SkeletonRows count={1} height={34} />
+        <SkeletonRows count={4} height={64} />
+      </View>
+    );
+  }
 
   const voiceOptions = voicesByLanguage[doc.language] ?? [];
 
@@ -448,6 +455,8 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
   const t = useT();
   const player = usePlayer();
   const [summarizing, setSummarizing] = useState(false);
+  const [summarizeProgress, setSummarizeProgress] = useState(null);
+  const toast = useToast();
   const [summarySheet, setSummarySheet] = useState(null); // null | 'quick' | 'ai' | 'simple'
   const [glossary, setGlossary] = useState(null);
   const [loadingGlossary, setLoadingGlossary] = useState(false);
@@ -475,6 +484,16 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
   const doSummarize = async (mode, opts = {}) => {
     setSummarizing(true);
     setError('');
+    const totalChars = doc.chapters.reduce((s, ch) => s + (ch.characters ?? 0), 0);
+    const llmSec = mode === 'quick' ? 3 : progressEstimate.summary(totalChars);
+    setSummarizeProgress({
+      stages: [
+        { label: 'Reading the document', estimateSec: Math.max(2, Math.round(llmSec * 0.3)) },
+        { label: mode === 'simple' ? 'Writing a simple explanation' : mode === 'lecture' ? 'Writing the lecture' : 'Writing the summary', estimateSec: llmSec },
+        { label: 'Generating audio', estimateSec: progressEstimate.tts((opts.maxWords ?? 300) * 6) },
+      ],
+      detail: `${totalChars.toLocaleString()} characters · target ~${opts.maxWords ?? 300} words`,
+    });
     try {
       const data = await postJson(`/documents/${docId}/summarize`, {
         mode,
@@ -490,6 +509,7 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
       setError(e.message);
     } finally {
       setSummarizing(false);
+      setSummarizeProgress(null);
     }
   };
 
@@ -511,6 +531,7 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
     setError('');
     try {
       await postJson(`/documents/${docId}/flashcards/generate`, { count: 10 });
+      toast('Flashcards ready');
       refresh();
     } catch (e) {
       setError(e.message);
@@ -639,7 +660,11 @@ function LearnSection({ doc, docId, voiceId, setError, refresh, copiedKey, copyT
         <Pill label={t('explainSimply')} onPress={() => setSummarySheet('simple')} disabled={summarizing} />
         <Pill label={t('keyTerms')} onPress={loadGlossary} disabled={loadingGlossary} />
       </Row>
-      {(summarizing || loadingGlossary) && <Loading label={summarizing ? 'Summarizing…' : 'Extracting terms…'} />}
+      {summarizing && summarizeProgress ? (
+        <ProgressCard stages={summarizeProgress.stages} detail={summarizeProgress.detail} />
+      ) : (summarizing || loadingGlossary) ? (
+        <Loading label={summarizing ? 'Summarizing…' : 'Extracting terms…'} />
+      ) : null}
 
       {glossary && (
         <Card style={{ marginTop: 10 }}>

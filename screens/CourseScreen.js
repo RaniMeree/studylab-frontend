@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { api, postJson } from '../api';
 import { useThemeColors } from '../theme';
-import { Body, Button, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Loading, Muted, NeonBar, Row, Title, TypeBadge } from '../ui';
+import { Body, Button, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Loading, Muted, NeonBar, Row, SkeletonRows, Title, TypeBadge } from '../ui';
 import { COURSE_COLORS } from './HomeScreen';
 
 function guessType(filename) {
@@ -53,7 +53,14 @@ export function CourseScreen({ courseId, onBack, onOpenDocument, onAddMaterial }
     }
   };
 
-  if (!course) return <Loading label="Loading course…" />;
+  if (!course) {
+    return (
+      <View style={{ padding: 16 }}>
+        <SkeletonRows count={1} height={80} />
+        <SkeletonRows count={4} height={60} />
+      </View>
+    );
+  }
 
   const color = course.color || COURSE_COLORS[0];
 

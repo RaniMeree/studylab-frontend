@@ -23,7 +23,7 @@ import { ReviewScreen } from './screens/ReviewScreen';
 import { supabase } from './supabaseClient';
 import { I18nContext, makeT, useT } from './i18n';
 import { ThemeContext, usePalette, useThemeColors } from './theme';
-import { Icon } from './ui';
+import { Icon, ToastProvider } from './ui';
 
 const TABS = [
   { key: 'home', icon: 'home-outline', activeIcon: 'home' },
@@ -258,6 +258,7 @@ export default function App() {
     <ThemeContext.Provider value={palette}>
       <I18nContext.Provider value={{ lang: uiLang, t: makeT(uiLang) }}>
       <PlayerProvider>
+        <ToastProvider>
         <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.page }}>
           <StatusBar style={palette.page === '#101012' ? 'light' : 'dark'} />
           {loading ? (
@@ -296,6 +297,7 @@ export default function App() {
             />
           )}
         </SafeAreaView>
+        </ToastProvider>
       </PlayerProvider>
       </I18nContext.Provider>
     </ThemeContext.Provider>

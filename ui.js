@@ -285,3 +285,147 @@ export function ProgressBar({ percent, height = 4 }) {
     </View>
   );
 }
+
+// ---------- Skeleton loaders ----------
+
+import { useEffect as _useEffect, useRef as _useRef, useState as _useState, createContext as _createContext, useContext as _useContext } from 'react';
+import { Animated } from 'react-native';
+
+export function Skeleton({ height = 64, style }) {
+  const c = useThemeColors();
+  const opacity = _useRef(new Animated.Value(0.35)).current;
+  _useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.9, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return (
+    <Animated.View
+      style={[{
+        height, borderRadius: 14, marginBottom: 10, opacity,
+        backgroundColor: c.glass ? 'rgba(255,255,255,0.06)' : c.card,
+      }, style]}
+    />
+  );
+}
+
+export function SkeletonRows({ count = 3, height = 64 }) {
+  return (
+    <View>
+      {Array.from({ length: count }).map((_, i) => <Skeleton key={i} height={height} />)}
+    </View>
+  );
+}
+
+// ---------- Staged progress card (upload / TTS / summarize) ----------
+
+export function ProgressCard({ stages, detail }) {
+  const c = useThemeColors();
+  const [elapsed, setElapsed] = _useState(0);
+  const startRef = _useRef(Date.now());
+  _useEffect(() => {
+    const t = setInterval(() => setElapsed((Date.now() - startRef.current) / 1000), 300);
+    return () => clearInterval(t);
+  }, []);
+
+  const total = stages.reduce((s, st) => s + st.estimateSec, 0);
+  let acc = 0;
+  let stageIdx = stages.length - 1;
+  for (let i = 0; i < stages.length; i++) {
+    acc += stages[i].estimateSec;
+    if (elapsed < acc) { stageIdx = i; break; }
+  }
+  const pct = Math.min(95, 100 * (1 - Math.exp(-1.7 * (elapsed / total))));
+  const overdue = elapsed > total * 1.6;
+  const left = Math.max(0, Math.round(total - elapsed));
+
+  return (
+    <View style={{
+      padding: 14, borderRadius: 16, marginVertical: 10,
+      backgroundColor: c.glass ? 'rgba(255,255,255,0.04)' : c.card,
+      borderWidth: 1, borderColor: c.glass ? 'rgba(167,139,250,0.25)' : c.border,
+    }}>
+      <Row style={{ gap: 10, marginBottom: 10 }}>
+        <ActivityIndicator color={c.accent} size="small" />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: c.text, fontSize: 13, fontWeight: '700' }}>{stages[stageIdx].label}</Text>
+          {detail ? <Text style={{ color: c.textMuted, fontSize: 11, marginTop: 2 }}>{detail}</Text> : null}
+        </View>
+        {left > 0 ? <Text style={{ color: c.textMuted, fontSize: 11 }}>~{left}s</Text> : null}
+      </Row>
+      <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <View style={{ height: '100%', width: `${pct}%`, borderRadius: 3, backgroundColor: c.accent }} />
+      </View>
+      {stages.length > 1 && (
+        <Row style={{ gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+          {stages.map((st, i) => (
+            <Text key={i} style={{
+              fontSize: 10,
+              color: i < stageIdx ? '#34D399' : i === stageIdx ? c.accent : c.textMuted,
+              fontWeight: i === stageIdx ? '700' : '400',
+            }}>
+              {i < stageIdx ? '✓ ' : ''}{st.label}
+            </Text>
+          ))}
+        </Row>
+      )}
+      <Text style={{ color: c.textMuted, fontSize: 10, marginTop: 8 }}>
+        {overdue
+          ? 'Taking a little longer than usual — the server may be waking up. Hang tight.'
+          : 'This runs in the cloud — please keep the app open.'}
+      </Text>
+    </View>
+  );
+}
+
+export const progressEstimate = {
+  tts: (chars) => Math.max(8, Math.round(6 + chars / 1500)),
+  summary: (chars) => Math.max(10, Math.round(8 + Math.min(chars, 60000) / 4000)),
+};
+
+// ---------- Toasts ----------
+
+const ToastCtx = _createContext(() => {});
+export const useToast = () => _useContext(ToastCtx);
+
+export function ToastProvider({ children }) {
+  const c = useThemeColors();
+  const [toasts, setToasts] = _useState([]);
+  const nextId = _useRef(0);
+
+  const push = (text, kind = 'success') => {
+    const id = nextId.current++;
+    setToasts((t) => [...t, { id, text, kind }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
+  };
+
+  const colors = { success: '#34D399', error: '#F87171', info: c.accent };
+
+  return (
+    <ToastCtx.Provider value={push}>
+      <View style={{ flex: 1 }}>
+        {children}
+        <View pointerEvents="none" style={{ position: 'absolute', bottom: 90, left: 0, right: 0, alignItems: 'center', gap: 8 }}>
+          {toasts.map((t) => (
+            <View key={t.id} style={{
+              flexDirection: 'row', alignItems: 'center', gap: 8,
+              paddingVertical: 10, paddingHorizontal: 16, borderRadius: 14, maxWidth: 320,
+              backgroundColor: '#1A1030', borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
+            }}>
+              <Text style={{ color: colors[t.kind] ?? colors.info, fontWeight: '800', fontSize: 13 }}>
+                {t.kind === 'success' ? '✓' : t.kind === 'error' ? '✕' : 'ℹ'}
+              </Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{t.text}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </ToastCtx.Provider>
+  );
+}

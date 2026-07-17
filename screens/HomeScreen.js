@@ -4,7 +4,7 @@ import { api, postJson } from '../api';
 import { useT } from '../i18n';
 import { usePlayer } from '../player';
 import { useThemeColors } from '../theme';
-import { Body, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Muted, NeonBar, ProgressBar, Row, Title } from '../ui';
+import { Body, Card, EmptyState, ErrorText, GlowBox, Icon, Input, Muted, NeonBar, ProgressBar, Row, SkeletonRows, Title, useToast } from '../ui';
 
 export const COURSE_COLORS = [
   '#7C3AED', '#0EA5E9', '#EC4899', '#10B981',
@@ -15,6 +15,7 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
   const c = useThemeColors();
   const t = useT();
   const player = usePlayer();
+  const toast = useToast();
   const [courses, setCourses] = useState(null);
   const [stats, setStats] = useState(null);
   const [resume, setResume] = useState(null);
@@ -37,6 +38,7 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
     try {
       const course = await postJson('/courses', { name: newName, color: newColor });
       setNewName('');
+      toast('Course created');
       refresh();
       onOpenCourse(course.id);
     } catch (e) {
@@ -212,7 +214,7 @@ export function HomeScreen({ email, onOpenCourse, onOpenDocument }) {
 
       <ErrorText>{error}</ErrorText>
 
-      {courses === null && <Muted>Loading…</Muted>}
+      {courses === null && <SkeletonRows count={4} height={70} />}
       {courses?.map((course) => {
         const color = course.color || COURSE_COLORS[0];
         return (
