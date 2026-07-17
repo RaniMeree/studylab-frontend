@@ -21,7 +21,7 @@ import { HomeScreen } from './screens/HomeScreen';
 import { FullPaywallScreen, PaywallScreen, ProfileScreen } from './screens/ProfileScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { supabase } from './supabaseClient';
-import { I18nContext, makeT, useT } from './i18n';
+import { I18nContext, UI_LANGUAGES, makeT, useT } from './i18n';
 import { ThemeContext, usePalette, useThemeColors } from './theme';
 import { Icon, ToastProvider } from './ui';
 
@@ -219,7 +219,17 @@ export default function App() {
       .then((v) => setOnboarded(v === '1'))
       .catch(() => setOnboarded(true));
     AsyncStorage.getItem('themePref').then((v) => v && setThemePref(v)).catch(() => {});
-    AsyncStorage.getItem('uiLang').then((v) => v && setUiLang(v)).catch(() => {});
+    AsyncStorage.getItem('uiLang')
+      .then((v) => {
+        if (v) return setUiLang(v);
+        // First run: follow the device language when we support it.
+        try {
+          const device = (Intl.DateTimeFormat().resolvedOptions().locale || 'en')
+            .split(/[-_]/)[0].toLowerCase();
+          if (UI_LANGUAGES.some((l) => l.code === device)) setUiLang(device);
+        } catch {}
+      })
+      .catch(() => {});
 
     supabase.auth.getSession().then(({ data }) => {
       lastUserIdRef.current = data.session?.user?.id ?? null;
